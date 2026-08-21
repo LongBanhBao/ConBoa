@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101a3a">
+  <title>Tic Tac Toe — Neon Arena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&family=Space+Grotesk:wght@700&display=swap');
+
+    :root {
+      --navy: #101a3a;
+      --navy-2: #172551;
+      --cream: #fff8e8;
+      --yellow: #ffd84d;
+      --pink: #ff5f86;
+      --cyan: #3de5df;
+      --ink: #17203e;
+      --shadow: 0 18px 45px rgba(9, 16, 44, .22);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow-x: hidden;
+      color: var(--ink);
+      font-family: "Be Vietnam Pro", sans-serif;
+      background:
+        radial-gradient(circle at 10% 15%, rgba(61, 229, 223, .28) 0 7%, transparent 8%),
+        radial-gradient(circle at 90% 80%, rgba(255, 95, 134, .2) 0 10%, transparent 11%),
+        var(--cream);
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      width: 220px;
+      height: 220px;
+      border: 28px solid var(--yellow);
+      border-radius: 50%;
+      z-index: -1;
+      opacity: .65;
+    }
+
+    body::before { top: -120px; right: -80px; }
+    body::after { bottom: -150px; left: -80px; border-color: var(--cyan); }
+
+    .game-shell {
+      width: min(94vw, 980px);
+      margin: 28px auto;
+      display: grid;
+      grid-template-columns: .8fr 1.2fr;
+      overflow: hidden;
+      border: 4px solid var(--navy);
+      border-radius: 28px;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+
+    .intro {
+      position: relative;
+      padding: 48px 38px;
+      color: white;
+      background: var(--navy);
+      isolation: isolate;
+    }
+
+    .intro::after {
+      content: "×";
+      position: absolute;
+      right: 8px;
+      bottom: -55px;
+      color: rgba(255,255,255,.06);
+      font: 800 230px/1 "Space Grotesk", sans-serif;
+      z-index: -1;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 24px;
+      padding: 8px 13px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 99px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before { content: "●"; font-size: 9px; }
+
+    h1 {
+      margin: 0;
+      font: 700 clamp(46px, 7vw, 78px)/.86 "Space Grotesk", sans-serif;
+      letter-spacing: -4px;
+    }
+
+    h1 span { color: var(--yellow); }
+
+    .tagline {
+      max-width: 280px;
+      margin: 28px 0 38px;
+      color: #bdc8eb;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .scoreboard { display: grid; gap: 10px; }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 16px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 13px;
+      background: rgba(255,255,255,.06);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .score-row strong {
+      color: var(--yellow);
+      font: 700 22px "Space Grotesk", sans-serif;
+    }
+
+    .score-row:nth-child(2) strong { color: var(--pink); }
+    .score-row:nth-child(3) strong { color: var(--cyan); }
+
+    .arena {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      padding: 38px;
+      background:
+        linear-gradient(rgba(16,26,58,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16,26,58,.035) 1px, transparent 1px),
+        #fffdf7;
+      background-size: 24px 24px;
+    }
+
+    .turn-card {
+      width: min(100%, 420px);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .turn-label { color: #6f7690; font-size: 13px; font-weight: 600; }
+
+    #status {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 800;
+    }
+
+    .turn-mark {
+      display: grid;
+      width: 29px;
+      height: 29px;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--navy);
+      background: var(--yellow);
+      font: 700 19px "Space Grotesk", sans-serif;
+    }
+
+    .board {
+      width: min(100%, 420px);
+      aspect-ratio: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 12px;
+      border: 3px solid var(--navy);
+      border-radius: 22px;
+      background: var(--navy);
+      box-shadow: 9px 9px 0 var(--yellow);
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 13px;
+      color: var(--navy);
+      background: #fffdf7;
+      cursor: pointer;
+      font: 700 clamp(48px, 8vw, 76px)/1 "Space Grotesk", sans-serif;
+      transition: transform .16s ease, background .2s ease, color .2s ease;
+    }
+
+    .cell:hover:empty { transform: translateY(-3px); background: #fff3be; }
+    .cell:focus-visible { outline: 4px solid var(--cyan); outline-offset: -4px; }
+    .cell.x { color: var(--yellow); text-shadow: 2px 2px 0 var(--navy); }
+    .cell.o { color: var(--pink); }
+    .cell.win { animation: pulse .65s ease-in-out infinite alternate; background: var(--cyan); color: var(--navy); }
+
+    @keyframes pulse { to { transform: scale(.92); } }
+
+    .actions {
+      width: min(100%, 420px);
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+    }
+
+    button.action {
+      flex: 1;
+      padding: 13px 18px;
+      border: 2px solid var(--navy);
+      border-radius: 12px;
+      color: white;
+      background: var(--navy);
+      cursor: pointer;
+      font: 700 13px "Be Vietnam Pro", sans-serif;
+      box-shadow: 4px 4px 0 var(--cyan);
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    button.action.secondary { color: var(--navy); background: transparent; box-shadow: none; }
+    button.action:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--cyan); }
+    button.action.secondary:hover { background: #f2efe5; box-shadow: none; }
+
+    .hint { margin: 18px 0 0; color: #9399ad; font-size: 11px; text-align: center; }
+
+    @media (max-width: 720px) {
+      body { place-items: start center; }
+      .game-shell { grid-template-columns: 1fr; margin: 14px auto; border-radius: 22px; }
+      .intro { padding: 27px 25px; }
+      h1 { font-size: 44px; letter-spacing: -2px; }
+      .tagline { margin: 15px 0 20px; }
+      .scoreboard { grid-template-columns: repeat(3, 1fr); gap: 7px; }
+      .score-row { align-items: flex-start; padding: 10px; flex-direction: column; }
+      .arena { padding: 28px 22px 34px; }
+      .board { gap: 8px; padding: 8px; box-shadow: 7px 7px 0 var(--yellow); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <section class="intro" aria-label="Thông tin trò chơi">
+      <p class="eyebrow">Neon arena</p>
+      <h1>TIC<br><span>TAC</span><br>TOE.</h1>
+      <p class="tagline">Ba ô liên tiếp là chiến thắng. Đơn giản để bắt đầu, khó để dừng lại.</p>
+
+      <div class="scoreboard" aria-label="Bảng điểm">
+        <div class="score-row"><span>Người chơi X</span><strong id="scoreX">0</strong></div>
+        <div class="score-row"><span>Người chơi O</span><strong id="scoreO">0</strong></div>
+        <div class="score-row"><span>Hòa</span><strong id="scoreDraw">0</strong></div>
+      </div>
+    </section>
+
+    <section class="arena" aria-label="Bàn chơi Tic Tac Toe">
+      <div class="turn-card">
+        <span class="turn-label">TRẠNG THÁI TRẬN ĐẤU</span>
+        <div id="status" aria-live="polite"><span class="turn-mark">X</span> Lượt của X</div>
+      </div>
+
+      <div class="board" id="board" role="grid" aria-label="Bàn cờ 3 nhân 3">
+        <button class="cell" role="gridcell" data-index="0" aria-label="Ô 1"></button>
+        <button class="cell" role="gridcell" data-index="1" aria-label="Ô 2"></button>
+        <button class="cell" role="gridcell" data-index="2" aria-label="Ô 3"></button>
+        <button class="cell" role="gridcell" data-index="3" aria-label="Ô 4"></button>
+        <button class="cell" role="gridcell" data-index="4" aria-label="Ô 5"></button>
+        <button class="cell" role="gridcell" data-index="5" aria-label="Ô 6"></button>
+        <button class="cell" role="gridcell" data-index="6" aria-label="Ô 7"></button>
+        <button class="cell" role="gridcell" data-index="7" aria-label="Ô 8"></button>
+        <button class="cell" role="gridcell" data-index="8" aria-label="Ô 9"></button>
+      </div>
+
+      <div class="actions">
+        <button class="action" id="newRound">Ván mới</button>
+        <button class="action secondary" id="resetScore">Đặt lại điểm</button>
+      </div>
+      <p class="hint">Mẹo: bạn cũng có thể dùng phím 1–9 để đánh cờ.</p>
+    </section>
+  </main>
+
+  <script>
+    const cells = [...document.querySelectorAll('.cell')];
+    const statusEl = document.getElementById('status');
+    const scoreEls = {
+      X: document.getElementById('scoreX'),
+      O: document.getElementById('scoreO'),
+      draw: document.getElementById('scoreDraw')
+    };
+
+    const winningLines = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6]
+    ];
+
+    let board = Array(9).fill('');
+    let currentPlayer = 'X';
+    let playing = true;
+    let scores = { X: 0, O: 0, draw: 0 };
+
+    function renderTurn() {
+      const color = currentPlayer === 'X' ? 'var(--yellow)' : 'var(--pink)';
+      statusEl.innerHTML = `<span class="turn-mark" style="background:${color}">${currentPlayer}</span> Lượt của ${currentPlayer}`;
+    }
+
+    function play(index) {
+      if (!playing || board[index]) return;
+
+      board[index] = currentPlayer;
+      cells[index].textContent = currentPlayer;
+      cells[index].classList.add(currentPlayer.toLowerCase());
+      cells[index].setAttribute('aria-label', `Ô ${index + 1}: ${currentPlayer}`);
+
+      const winnerLine = winningLines.find(line => line.every(i => board[i] === currentPlayer));
+
+      if (winnerLine) {
+        playing = false;
+        winnerLine.forEach(i => cells[i].classList.add('win'));
+        scores[currentPlayer]++;
+        scoreEls[currentPlayer].textContent = scores[currentPlayer];
+        statusEl.innerHTML = `<span class="turn-mark">★</span> ${currentPlayer} chiến thắng!`;
+        return;
+      }
+
+      if (board.every(Boolean)) {
+        playing = false;
+        scores.draw++;
+        scoreEls.draw.textContent = scores.draw;
+        statusEl.innerHTML = '<span class="turn-mark" style="background:var(--cyan)">=</span> Trận đấu hòa!';
+        return;
+      }
+
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      renderTurn();
+    }
+
+    function newRound() {
+      board = Array(9).fill('');
+      currentPlayer = 'X';
+      playing = true;
+      cells.forEach((cell, i) => {
+        cell.textContent = '';
+        cell.className = 'cell';
+        cell.setAttribute('aria-label', `Ô ${i + 1}`);
+      });
+      renderTurn();
+      cells[0].focus();
+    }
+
+    cells.forEach(cell => cell.addEventListener('click', () => play(Number(cell.dataset.index))));
+    document.getElementById('newRound').addEventListener('click', newRound);
+    document.getElementById('resetScore').addEventListener('click', () => {
+      scores = { X: 0, O: 0, draw: 0 };
+      Object.values(scoreEls).forEach(el => el.textContent = '0');
+      newRound();
+    });
+
+    document.addEventListener('keydown', event => {
+      const number = Number(event.key);
+      if (number >= 1 && number <= 9) play(number - 1);
+    });
+  </script>
+</body>
+</html>
