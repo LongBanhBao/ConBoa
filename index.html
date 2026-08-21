@@ -159,6 +159,33 @@
 
     .turn-label { color: #6f7690; font-size: 13px; font-weight: 600; }
 
+    .mode-switch {
+      width: min(100%, 420px);
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 7px;
+      margin-bottom: 18px;
+      padding: 6px;
+      border: 2px solid var(--navy);
+      border-radius: 14px;
+      background: white;
+    }
+
+    .mode-button {
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 9px;
+      color: #737a92;
+      background: transparent;
+      cursor: pointer;
+      font: 700 12px "Be Vietnam Pro", sans-serif;
+      transition: color .15s ease, background .15s ease;
+    }
+
+    .mode-button:hover { color: var(--navy); background: #f2efe5; }
+    .mode-button.active { color: white; background: var(--navy); }
+    .mode-button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 1px; }
+
     #status {
       display: flex;
       align-items: center;
@@ -204,6 +231,8 @@
     }
 
     .cell:hover:empty { transform: translateY(-3px); background: #fff3be; }
+    .board.thinking .cell:empty { cursor: wait; }
+    .board.thinking .cell:hover:empty { transform: none; background: #fffdf7; }
     .cell:focus-visible { outline: 4px solid var(--cyan); outline-offset: -4px; }
     .cell.x { color: var(--yellow); text-shadow: 2px 2px 0 var(--navy); }
     .cell.o { color: var(--pink); }
@@ -263,12 +292,17 @@
 
       <div class="scoreboard" aria-label="Bảng điểm">
         <div class="score-row"><span>Người chơi X</span><strong id="scoreX">0</strong></div>
-        <div class="score-row"><span>Người chơi O</span><strong id="scoreO">0</strong></div>
+        <div class="score-row"><span id="playerOLabel">Người chơi O</span><strong id="scoreO">0</strong></div>
         <div class="score-row"><span>Hòa</span><strong id="scoreDraw">0</strong></div>
       </div>
     </section>
 
     <section class="arena" aria-label="Bàn chơi Tic Tac Toe">
+      <div class="mode-switch" role="group" aria-label="Chọn chế độ chơi">
+        <button class="mode-button active" data-mode="human" aria-pressed="true">👥 Hai người</button>
+        <button class="mode-button" data-mode="computer" aria-pressed="false">🤖 Chơi với máy</button>
+      </div>
+
       <div class="turn-card">
         <span class="turn-label">TRẠNG THÁI TRẬN ĐẤU</span>
         <div id="status" aria-live="polite"><span class="turn-mark">X</span> Lượt của X</div>
@@ -296,7 +330,10 @@
 
   <script>
     const cells = [...document.querySelectorAll('.cell')];
+    const boardEl = document.getElementById('board');
     const statusEl = document.getElementById('status');
+    const modeButtons = [...document.querySelectorAll('.mode-button')];
+    const playerOLabel = document.getElementById('playerOLabel');
     const scoreEls = {
       X: document.getElementById('scoreX'),
       O: document.getElementById('scoreO'),
@@ -312,48 +349,117 @@
     let board = Array(9).fill('');
     let currentPlayer = 'X';
     let playing = true;
+    let gameMode = 'human';
+    let computerTimer = null;
     let scores = { X: 0, O: 0, draw: 0 };
 
     function renderTurn() {
       const color = currentPlayer === 'X' ? 'var(--yellow)' : 'var(--pink)';
-      statusEl.innerHTML = `<span class="turn-mark" style="background:${color}">${currentPlayer}</span> Lượt của ${currentPlayer}`;
+      const text = gameMode === 'computer' && currentPlayer === 'O' ? 'Máy đang nghĩ…' : `Lượt của ${currentPlayer}`;
+      statusEl.innerHTML = `<span class="turn-mark" style="background:${color}">${currentPlayer}</span> ${text}`;
     }
 
-    function play(index) {
+    function findWinner(state) {
+      return winningLines.find(line => line.every(i => state[i] && state[i] === state[line[0]]));
+    }
+
+    function finishTurn() {
+      const winnerLine = findWinner(board);
+
+      if (winnerLine) {
+        playing = false;
+        boardEl.classList.remove('thinking');
+        const winner = board[winnerLine[0]];
+        winnerLine.forEach(i => cells[i].classList.add('win'));
+        scores[winner]++;
+        scoreEls[winner].textContent = scores[winner];
+        const winnerName = gameMode === 'computer' && winner === 'O' ? 'Máy' : winner;
+        statusEl.innerHTML = `<span class="turn-mark">★</span> ${winnerName} chiến thắng!`;
+        return true;
+      }
+
+      if (board.every(Boolean)) {
+        playing = false;
+        boardEl.classList.remove('thinking');
+        scores.draw++;
+        scoreEls.draw.textContent = scores.draw;
+        statusEl.innerHTML = '<span class="turn-mark" style="background:var(--cyan)">=</span> Trận đấu hòa!';
+        return true;
+      }
+
+      return false;
+    }
+
+    function play(index, fromComputer = false) {
       if (!playing || board[index]) return;
+      if (gameMode === 'computer' && currentPlayer === 'O' && !fromComputer) return;
 
       board[index] = currentPlayer;
       cells[index].textContent = currentPlayer;
       cells[index].classList.add(currentPlayer.toLowerCase());
       cells[index].setAttribute('aria-label', `Ô ${index + 1}: ${currentPlayer}`);
 
-      const winnerLine = winningLines.find(line => line.every(i => board[i] === currentPlayer));
-
-      if (winnerLine) {
-        playing = false;
-        winnerLine.forEach(i => cells[i].classList.add('win'));
-        scores[currentPlayer]++;
-        scoreEls[currentPlayer].textContent = scores[currentPlayer];
-        statusEl.innerHTML = `<span class="turn-mark">★</span> ${currentPlayer} chiến thắng!`;
-        return;
-      }
-
-      if (board.every(Boolean)) {
-        playing = false;
-        scores.draw++;
-        scoreEls.draw.textContent = scores.draw;
-        statusEl.innerHTML = '<span class="turn-mark" style="background:var(--cyan)">=</span> Trận đấu hòa!';
-        return;
-      }
+      if (finishTurn()) return;
 
       currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
       renderTurn();
+
+      if (gameMode === 'computer' && currentPlayer === 'O') queueComputerMove();
+    }
+
+    function minimax(state, maximizing, depth = 0) {
+      const winnerLine = findWinner(state);
+      if (winnerLine) return state[winnerLine[0]] === 'O' ? 10 - depth : depth - 10;
+      if (state.every(Boolean)) return 0;
+
+      const moveScores = [];
+      for (let i = 0; i < state.length; i++) {
+        if (state[i]) continue;
+        state[i] = maximizing ? 'O' : 'X';
+        moveScores.push(minimax(state, !maximizing, depth + 1));
+        state[i] = '';
+      }
+      return maximizing ? Math.max(...moveScores) : Math.min(...moveScores);
+    }
+
+    function bestComputerMove() {
+      let bestScore = -Infinity;
+      let bestMoves = [];
+
+      board.forEach((value, index) => {
+        if (value) return;
+        board[index] = 'O';
+        const score = minimax(board, false);
+        board[index] = '';
+        if (score > bestScore) {
+          bestScore = score;
+          bestMoves = [index];
+        } else if (score === bestScore) {
+          bestMoves.push(index);
+        }
+      });
+
+      return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+    }
+
+    function queueComputerMove() {
+      boardEl.classList.add('thinking');
+      computerTimer = setTimeout(() => {
+        boardEl.classList.remove('thinking');
+        computerTimer = null;
+        if (playing && gameMode === 'computer' && currentPlayer === 'O') {
+          play(bestComputerMove(), true);
+        }
+      }, 520);
     }
 
     function newRound() {
+      clearTimeout(computerTimer);
+      computerTimer = null;
       board = Array(9).fill('');
       currentPlayer = 'X';
       playing = true;
+      boardEl.classList.remove('thinking');
       cells.forEach((cell, i) => {
         cell.textContent = '';
         cell.className = 'cell';
@@ -363,7 +469,22 @@
       cells[0].focus();
     }
 
+    function changeMode(mode) {
+      if (mode === gameMode) return;
+      gameMode = mode;
+      modeButtons.forEach(button => {
+        const active = button.dataset.mode === mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active);
+      });
+      playerOLabel.textContent = mode === 'computer' ? 'Máy (O)' : 'Người chơi O';
+      scores = { X: 0, O: 0, draw: 0 };
+      Object.values(scoreEls).forEach(el => el.textContent = '0');
+      newRound();
+    }
+
     cells.forEach(cell => cell.addEventListener('click', () => play(Number(cell.dataset.index))));
+    modeButtons.forEach(button => button.addEventListener('click', () => changeMode(button.dataset.mode)));
     document.getElementById('newRound').addEventListener('click', newRound);
     document.getElementById('resetScore').addEventListener('click', () => {
       scores = { X: 0, O: 0, draw: 0 };
