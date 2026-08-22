@@ -7,7 +7,7 @@
   <meta name="description" content="Một chuyến du hành tĩnh lặng giữa tinh hà và những chú cá voi vũ trụ.">
   <title>Kình Ca Giữa Ngân Hà</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500&display=swap');
     :root { color-scheme: dark; --ink:#03040e; --glow:#99dbff; }
     * { box-sizing: border-box; }
     html, body { width:100%; height:100%; margin:0; overflow:hidden; background:var(--ink); }
@@ -24,10 +24,6 @@
       background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E");
       animation:grain .28s steps(2) infinite;
     }
-    .brand { position:fixed; top:clamp(24px,5vw,58px); left:clamp(24px,6vw,78px); z-index:4; user-select:none; pointer-events:none; }
-    .brand p { margin:0 0 10px; color:rgba(185,215,245,.62); font-size:9px; font-weight:500; letter-spacing:.42em; text-transform:uppercase; }
-    .brand h1 { margin:0; font:italic 300 clamp(32px,5vw,66px)/.92 "Cormorant Garamond",serif; letter-spacing:-.035em; text-shadow:0 0 30px rgba(126,193,255,.15); }
-    .brand h1 span { display:block; margin-left:clamp(20px,5vw,62px); color:var(--glow); }
     .quote { position:fixed; right:clamp(24px,6vw,80px); bottom:clamp(26px,6vw,64px); z-index:4; width:min(285px,58vw); margin:0; color:rgba(210,226,247,.55); font:300 clamp(11px,1.2vw,13px)/1.8 "Be Vietnam Pro",sans-serif; letter-spacing:.04em; text-align:right; pointer-events:none; }
     .hint { position:fixed; left:clamp(24px,6vw,78px); bottom:clamp(26px,6vw,64px); z-index:4; display:flex; align-items:center; gap:11px; color:rgba(180,208,236,.38); font-size:9px; letter-spacing:.2em; text-transform:uppercase; pointer-events:none; animation:breathe 4s ease-in-out infinite; }
     .hint::before { content:""; width:27px; height:1px; background:currentColor; }
@@ -76,7 +72,7 @@
     @keyframes shake { 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
     @keyframes lockAura { 50%{transform:scale(1.12);opacity:.72} }
     @media (max-width:620px) {
-      .quote{display:none} .brand h1{font-size:39px} .hint{font-size:8px}
+      .quote{display:none} .hint{font-size:8px}
       .lock-panel{padding:18px 25px 22px} .lock-date{margin-bottom:28px}
       .keypad{grid-template-columns:repeat(3,64px);gap:10px 20px}.key{width:64px;height:64px}
     }
@@ -114,10 +110,6 @@
   <canvas id="universe" aria-label="Tinh hà chuyển động với hai chú cá voi đang bơi xung quanh"></canvas>
   <div class="vignette"></div>
   <div class="grain"></div>
-  <header class="brand">
-    <p>Chuyến du hành vô tận</p>
-    <h1>Kình ca <span>giữa ngân hà</span></h1>
-  </header>
   <p class="hint">Di chuyển để đánh thức vũ trụ</p>
   <p class="quote">“Ở nơi sâu nhất của bóng tối,<br>mọi ánh sáng đều biết cách cất lời.”</p>
   <script>
@@ -200,7 +192,13 @@
       const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
       const TAU = Math.PI * 2;
       const pointer = { x:0, y:0, tx:0, ty:0 };
-      const stars = [], dust = [], galaxy = [];
+      const stars = [], dust = [];
+      const whaleImage = new Image();
+      const galaxyImage = new Image();
+      const galaxyLayer = document.createElement('canvas');
+      const whaleLayer = document.createElement('canvas');
+      whaleImage.src = 'assets/cosmic-whale.png';
+      galaxyImage.src = 'assets/spiral-galaxy.png';
       let width=0, height=0, dpr=1, elapsed=0, lastTime=performance.now();
       const random = (min,max) => min + Math.random() * (max-min);
 
@@ -208,12 +206,12 @@
         width=innerWidth; height=innerHeight; dpr=Math.min(devicePixelRatio||1,2);
         canvas.width=Math.round(width*dpr); canvas.height=Math.round(height*dpr);
         canvas.style.width=width+'px'; canvas.style.height=height+'px';
-        ctx.setTransform(dpr,0,0,dpr,0,0); createScene();
+        ctx.setTransform(dpr,0,0,dpr,0,0); createScene(); buildGalaxyLayer();
       }
 
       function createScene() {
-        stars.length=dust.length=galaxy.length=0;
-        const starCount=Math.min(650,Math.floor(width*height/2400));
+        stars.length=dust.length=0;
+        const starCount=Math.min(720,Math.floor(width*height/2100));
         for(let i=0;i<starCount;i++) stars.push({
           x:Math.random()*width,y:Math.random()*height,r:random(.18,1.25),
           a:random(.12,.78),twinkle:random(.4,1.8),phase:random(0,TAU),depth:random(.1,1)
@@ -222,15 +220,35 @@
           x:Math.random()*width,y:Math.random()*height,r:random(20,95),
           hue:Math.random()>.58?random(195,222):random(255,286),a:random(.007,.025),drift:random(.4,1.3)
         });
-        const count=Math.min(1900,Math.max(850,Math.floor(width*height/650)));
-        for(let i=0;i<count;i++) {
-          const arm=i%4, radius=Math.pow(Math.random(),.64);
-          galaxy.push({
-            radius, angle:arm*TAU/4+radius*9.2+random(-.48,.48)*(radius+.12),
-            size:random(.25,1.45)*(1.2-radius*.34), alpha:random(.16,.8)*(1.08-radius*.45),
-            speed:random(.018,.045), hue:random(192,232)+(Math.random()>.78?70:0), z:random(-1,1)
-          });
-        }
+      }
+
+      function buildGalaxyLayer() {
+        if (!galaxyImage.complete || !galaxyImage.naturalWidth) return;
+        const size=900;
+        galaxyLayer.width=galaxyLayer.height=size;
+        const g=galaxyLayer.getContext('2d');
+        g.clearRect(0,0,size,size);
+        const source=Math.min(galaxyImage.naturalWidth,galaxyImage.naturalHeight);
+        const sx=(galaxyImage.naturalWidth-source)/2;
+        const sy=(galaxyImage.naturalHeight-source)/2;
+        g.drawImage(galaxyImage,sx,sy,source,source,0,0,size,size);
+        g.globalCompositeOperation='destination-in';
+        const mask=g.createRadialGradient(size/2,size/2,size*.25,size/2,size/2,size*.5);
+        mask.addColorStop(0,'rgba(0,0,0,1)');
+        mask.addColorStop(.76,'rgba(0,0,0,.98)');
+        mask.addColorStop(.92,'rgba(0,0,0,.58)');
+        mask.addColorStop(1,'rgba(0,0,0,0)');
+        g.fillStyle=mask; g.fillRect(0,0,size,size);
+        g.globalCompositeOperation='source-over';
+      }
+
+      function buildWhaleLayer() {
+        if(!whaleImage.complete || !whaleImage.naturalWidth) return;
+        whaleLayer.width=768;
+        whaleLayer.height=Math.round(768*whaleImage.naturalHeight/whaleImage.naturalWidth);
+        const wctx=whaleLayer.getContext('2d');
+        wctx.clearRect(0,0,whaleLayer.width,whaleLayer.height);
+        wctx.drawImage(whaleImage,0,0,whaleLayer.width,whaleLayer.height);
       }
 
       function drawBackground(t) {
@@ -256,87 +274,90 @@
       }
 
       function drawGalaxy(t) {
-        const cx=width*.5+pointer.x*13, cy=height*.5+pointer.y*9;
-        const scale=Math.min(width,height)*(width<620?.37:.43);
-        ctx.save(); ctx.translate(cx,cy); ctx.rotate(-.18+pointer.x*.025); ctx.scale(1,.42);
-        ctx.globalCompositeOperation='screen';
-        const halo=ctx.createRadialGradient(0,0,0,0,0,scale*.72);
-        halo.addColorStop(0,'rgba(228,246,255,.34)'); halo.addColorStop(.08,'rgba(124,210,255,.2)');
-        halo.addColorStop(.35,'rgba(90,111,255,.08)'); halo.addColorStop(1,'rgba(15,25,75,0)');
-        ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(0,0,scale*.72,0,TAU); ctx.fill();
-        for(const p of galaxy) {
-          const a=p.angle+t*p.speed*(1.1-p.radius*.5), r=p.radius*scale;
-          const x=Math.cos(a)*r, y=Math.sin(a)*r+Math.sin(a*3+p.z*5)*scale*.018*p.radius;
-          ctx.beginPath(); ctx.arc(x,y,p.size,0,TAU);
-          ctx.fillStyle=`hsla(${p.hue},92%,${70+p.z*7}%,${p.alpha})`; ctx.fill();
-        }
-        const core=ctx.createRadialGradient(0,0,0,0,0,scale*.16);
-        core.addColorStop(0,'rgba(255,255,245,.98)'); core.addColorStop(.08,'rgba(191,236,255,.9)');
-        core.addColorStop(.28,'rgba(92,190,255,.38)'); core.addColorStop(1,'rgba(87,77,255,0)');
-        ctx.fillStyle=core; ctx.beginPath(); ctx.arc(0,0,scale*.16,0,TAU); ctx.fill();
-        ctx.restore(); ctx.globalCompositeOperation='source-over';
-      }
-
-      function whalePose(t,c) {
-        const short=Math.min(width,height);
-        const rx=Math.min(width*c.orbitX,short*c.maxOrbit);
-        const ry=Math.min(height*c.orbitY,short*c.maxOrbit*.54);
-        const a=c.phase+t*c.speed;
-        const x=width*.5+Math.cos(a)*rx+pointer.x*c.depth*16;
-        const y=height*.51+Math.sin(a)*ry+Math.sin(t*.72+c.phase)*11+pointer.y*c.depth*11;
-        const dx=-Math.sin(a)*rx*c.speed;
-        const dy=Math.cos(a)*ry*c.speed+Math.cos(t*.72+c.phase)*7.92;
-        return {x,y,angle:Math.atan2(dy,dx),wave:t*c.tailSpeed+c.phase,scale:c.scale*Math.min(1.08,Math.max(.67,short/720))};
-      }
-
-      function drawWhale(p,palette) {
-        const {x,y,angle,wave,scale}=p;
-        ctx.save(); ctx.translate(x,y); ctx.rotate(angle); ctx.scale(scale,scale);
-        ctx.shadowColor=palette.glow; ctx.shadowBlur=24;
-        const bend1=Math.sin(wave)*8, bend2=Math.sin(wave-.75)*15;
-
-        ctx.beginPath(); ctx.moveTo(-62,-7); ctx.quadraticCurveTo(-83,bend1-8,-102,bend2-4);
-        ctx.lineTo(-102,bend2+5); ctx.quadraticCurveTo(-83,bend1+10,-58,11); ctx.closePath();
-        ctx.fillStyle=palette.bodyDark; ctx.fill();
-
-        ctx.save(); ctx.translate(-101,bend2); ctx.rotate(Math.sin(wave-.75)*.18);
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-14,-4,-28,-18,-32,-31);
-        ctx.bezierCurveTo(-13,-27,-2,-16,2,-3); ctx.bezierCurveTo(-1,10,-13,22,-27,27);
-        ctx.bezierCurveTo(-22,10,-10,1,0,0); ctx.closePath(); ctx.fillStyle=palette.body; ctx.fill(); ctx.restore();
-
-        const body=ctx.createLinearGradient(-65,-30,70,28);
-        body.addColorStop(0,palette.bodyDark); body.addColorStop(.46,palette.body); body.addColorStop(1,palette.belly);
-        ctx.beginPath(); ctx.moveTo(-65,-13); ctx.bezierCurveTo(-34,-34,21,-34,61,-14);
-        ctx.bezierCurveTo(82,-3,78,17,58,25); ctx.bezierCurveTo(20,39,-37,29,-65,10);
-        ctx.bezierCurveTo(-73,3,-73,-5,-65,-13); ctx.closePath(); ctx.fillStyle=body; ctx.fill();
-
-        ctx.shadowBlur=0; ctx.strokeStyle=palette.line; ctx.lineWidth=1;
-        for(let i=0;i<5;i++) { ctx.beginPath(); ctx.moveTo(23+i*7,20+i*.2); ctx.quadraticCurveTo(47+i*4,16,68,7+i*.7); ctx.stroke(); }
-
-        ctx.globalAlpha=.62; ctx.beginPath(); ctx.moveTo(-5,20);
-        ctx.bezierCurveTo(-16,39,-10,54,12,63); ctx.bezierCurveTo(18,45,16,29,10,20);
-        ctx.fillStyle=palette.bodyDark; ctx.fill(); ctx.globalAlpha=1;
-
-        ctx.save(); ctx.translate(18,21); ctx.rotate(.08+Math.sin(wave-.45)*.12);
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(5,18,18,35,37,43);
-        ctx.bezierCurveTo(43,24,30,7,12,-3); ctx.closePath(); ctx.fillStyle=palette.fin; ctx.fill(); ctx.restore();
-
-        ctx.beginPath(); ctx.arc(57,-8,1.75,0,TAU); ctx.fillStyle='rgba(222,250,255,.95)';
-        ctx.shadowColor='#b9edff'; ctx.shadowBlur=7; ctx.fill();
-        for(let i=0;i<7;i++) {
-          ctx.beginPath(); ctx.arc(-37+i*13,-15+Math.sin(i*1.7)*5,.75+(i%2)*.35,0,TAU);
-          ctx.fillStyle=palette.spot; ctx.fill();
+        const cx=width*.5+pointer.x*8, cy=height*.5+pointer.y*6;
+        const size=Math.min(width,height)*(width<620?.73:.91);
+        ctx.save(); ctx.translate(cx,cy);
+        const halo=ctx.createRadialGradient(0,0,size*.12,0,0,size*.63);
+        halo.addColorStop(0,'rgba(255,190,245,.2)');
+        halo.addColorStop(.42,'rgba(108,75,255,.12)');
+        halo.addColorStop(1,'rgba(28,12,92,0)');
+        ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(0,0,size*.63,0,TAU); ctx.fill();
+        if(galaxyLayer.width) {
+          ctx.rotate(t*.012);
+          ctx.globalAlpha=.92;
+          ctx.drawImage(galaxyLayer,-size/2,-size/2,size,size);
         }
         ctx.restore();
       }
 
-      function drawWhales(t) {
-        const a=whalePose(t,{phase:.15,speed:.105,tailSpeed:2.05,orbitX:.42,orbitY:.31,maxOrbit:.76,scale:1.08,depth:.7});
-        const b=whalePose(t,{phase:Math.PI+.62,speed:-.082,tailSpeed:1.72,orbitX:.34,orbitY:.23,maxOrbit:.64,scale:.72,depth:1.15});
-        const front={body:'#405a76',bodyDark:'#17283f',belly:'#7795aa',fin:'#2e4763',line:'rgba(203,234,244,.2)',glow:'rgba(102,205,255,.36)',spot:'rgba(178,238,255,.55)'};
-        const back={body:'#52647c',bodyDark:'#202b42',belly:'#7892a6',fin:'#3d506a',line:'rgba(186,220,233,.16)',glow:'rgba(90,177,229,.28)',spot:'rgba(166,227,255,.42)'};
-        const whales=[{pose:a,palette:front},{pose:b,palette:back}].sort((u,v)=>u.pose.y-v.pose.y);
-        drawWhale(whales[0].pose,whales[0].palette); drawWhale(whales[1].pose,whales[1].palette);
+      function whalePose(t,c) {
+        const mobile=width<620;
+        const rx=mobile?width*.37:Math.min(width*.43,760);
+        const ry=mobile?height*.31:Math.min(height*.39,430);
+        const a=c.phase+t*c.speed;
+        const x=width*.5+Math.cos(a)*rx*c.orbitScale;
+        const y=height*.5+Math.sin(a)*ry*c.orbitScale;
+        const dx=-Math.sin(a)*rx*c.speed;
+        const dy=Math.cos(a)*ry*c.speed;
+        const depth=(Math.sin(a)+1)/2;
+        const baseWidth=mobile?width*.35:Math.min(width*.29,390);
+        return {
+          x,y,a,depth,angle:Math.atan2(dy,dx),
+          wave:t*c.tailSpeed+c.phase,
+          drawWidth:baseWidth*c.scale*(.76+depth*.3),
+          opacity:.64+depth*.34
+        };
+      }
+
+      function drawFlipper(w,h,wave,front) {
+        const flap=Math.sin(wave+(front?0:Math.PI*.6));
+        ctx.save();
+        ctx.translate(w*.07,front?h*.1:h*.04);
+        ctx.rotate((front?.38:.24)+flap*(front?.3:.18));
+        ctx.scale(1,.72+Math.cos(wave+(front?0:.8))*.18);
+        const g=ctx.createLinearGradient(0,0,w*.14,h*.27);
+        g.addColorStop(0,front?'rgba(93,54,202,.58)':'rgba(39,51,145,.35)');
+        g.addColorStop(.58,front?'rgba(141,55,206,.46)':'rgba(75,40,151,.28)');
+        g.addColorStop(1,'rgba(28,117,211,.04)');
+        ctx.fillStyle=g;
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.bezierCurveTo(w*.045,h*.065,w*.115,h*.19,w*.145,h*.28);
+        ctx.bezierCurveTo(w*.055,h*.25,w*.012,h*.13,0,0);
+        ctx.fill(); ctx.restore();
+      }
+
+      function drawWhale(p) {
+        if(!whaleLayer.width) return;
+        const w=p.drawWidth, h=w*whaleLayer.height/whaleLayer.width;
+        const sliceCount=28, sourceW=whaleLayer.width/sliceCount, targetW=w/sliceCount;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.angle);
+        ctx.globalAlpha=p.opacity;
+        ctx.save();
+        ctx.globalAlpha=.2;
+        ctx.filter='blur(7px) brightness(1.7) saturate(1.35)';
+        ctx.drawImage(whaleLayer,-w/2,-h/2,w,h);
+        ctx.restore();
+        drawFlipper(w,h,p.wave,false);
+        drawFlipper(w,h,p.wave,true);
+        for(let i=0;i<sliceCount;i++) {
+          const u=i/(sliceCount-1);
+          const tailStrength=Math.pow(1-u,1.8);
+          const bodyWave=Math.sin(p.wave-u*1.75)*h*.042*tailStrength;
+          const breathing=Math.sin(p.wave*.5)*h*.006*(1-tailStrength);
+          ctx.drawImage(
+            whaleLayer,i*sourceW,0,sourceW+2,whaleLayer.height,
+            -w/2+i*targetW, -h/2+bodyWave+breathing,targetW+2.2,h
+          );
+        }
+        ctx.restore();
+      }
+
+      function getWhales(t) {
+        const leadPhase=width<620?.8:.15;
+        return [
+          whalePose(t,{phase:leadPhase,speed:.073,tailSpeed:1.86,orbitScale:1,scale:1}),
+          whalePose(t,{phase:leadPhase+Math.PI+.12,speed:.061,tailSpeed:1.62,orbitScale:.9,scale:.78})
+        ];
       }
 
       function shootingStar(t) {
@@ -351,12 +372,19 @@
         const delta=Math.min((now-lastTime)/1000,.04); lastTime=now;
         elapsed+=reducedMotion?delta*.12:delta;
         pointer.x+=(pointer.tx-pointer.x)*.035; pointer.y+=(pointer.ty-pointer.y)*.035;
-        drawBackground(elapsed); drawGalaxy(elapsed); drawWhales(elapsed); shootingStar(elapsed);
+        const whales=getWhales(elapsed);
+        drawBackground(elapsed);
+        whales.filter(whale=>whale.depth<.5).forEach(drawWhale);
+        drawGalaxy(elapsed);
+        whales.filter(whale=>whale.depth>=.5).forEach(drawWhale);
+        shootingStar(elapsed);
         requestAnimationFrame(frame);
       }
       addEventListener('pointermove',e=>{pointer.tx=e.clientX/width-.5;pointer.ty=e.clientY/height-.5},{passive:true});
       addEventListener('pointerleave',()=>{pointer.tx=0;pointer.ty=0});
       addEventListener('resize',resize,{passive:true});
+      galaxyImage.addEventListener('load',buildGalaxyLayer);
+      whaleImage.addEventListener('load',buildWhaleLayer);
       resize(); requestAnimationFrame(frame);
     })();
   </script>
