@@ -618,8 +618,29 @@
       return {geometry,bellyGeometry,boneXs,boneYs};
     }
 
+    const DEFAULT_WHALE_MOTION=Object.freeze({
+      pathSpeed:.0094,
+      tailBeatFrequency:.235,
+      bodyAmplitude:.34,
+      tailBoost:.08,
+      tailAmplitude:.065,
+      bodyStiffness:1.25,
+      bendStart:.24,
+      phaseDelay:2.15,
+      flukeLag:.18,
+      heaveAmplitude:.045,
+      heaveHarmonic:.009,
+      pitchAmplitude:THREE.MathUtils.degToRad(1.6),
+      pectoralAmplitude:.03,
+      pectoralTiltAmplitude:.012,
+      pectoralRate:.34,
+      finSteering:.06,
+      orientationResponse:6
+    });
+
     function createWhale(config){
-      const scale=config.scale,offset=config.offset,speed=config.speed,pathScale=config.pathScale;
+      const motion={...DEFAULT_WHALE_MOTION,...(config.motion||{})};
+      const scale=config.scale,offset=config.offset,speed=config.speed??motion.pathSpeed,pathScale=config.pathScale;
       const root=new THREE.Group();
       root.scale.setScalar(scale);
       const result=createWhaleGeometry();
@@ -627,7 +648,10 @@
       const waveLength=boneXs[0]-boneXs[boneXs.length-1];
       const waveProfile=boneXs.map(x=>{
         const s=(boneXs[0]-x)/waveLength;
-        return {s,amplitude:.004+Math.pow(s,2.15)*.225};
+        const u=THREE.MathUtils.clamp((s-motion.bendStart)/(1-motion.bendStart),0,1);
+        const bodyEnvelope=Math.pow(u*u*(3-2*u),motion.bodyStiffness);
+        const tailEnvelope=THREE.MathUtils.smoothstep(s,.72,1);
+        return {s,amplitude:bodyEnvelope*motion.bodyAmplitude+tailEnvelope*tailEnvelope*motion.tailBoost};
       });
       const bodyMaterial=new THREE.MeshPhysicalMaterial({
         color:0xffffff,map:cosmicWhaleTextures.color,roughness:.24,metalness:.03,clearcoat:.72,clearcoatRoughness:.18,
@@ -696,11 +720,12 @@
         const fin=new THREE.Mesh(pectoralGeometry,finMaterial);fin.scale.set(1.12,1.08,side*.9);pivot.add(fin);
         bones[1].add(pivot);fins.push(pivot);
       });
-      const flukes=[];
+      const flukeRoot=new THREE.Group();
+      flukeRoot.position.set(-.14,.02,0);bones[bones.length-1].add(flukeRoot);
       [-1,1].forEach(side=>{
-        const pivot=new THREE.Group();pivot.position.set(-.14,.02,0);pivot.userData.side=side;
-        const fluke=new THREE.Mesh(flukeGeometry,finMaterial);fluke.scale.z=side;pivot.add(fluke);
-        bones[bones.length-1].add(pivot);flukes.push(pivot);
+        const lobePivot=new THREE.Group();lobePivot.rotation.x=side*.035;
+        const fluke=new THREE.Mesh(flukeGeometry,finMaterial);fluke.scale.z=side;lobePivot.add(fluke);
+        flukeRoot.add(lobePivot);
       });
       const dorsal=new THREE.Mesh(createDorsalGeometry(),finMaterial);
       dorsal.position.set(.35,.84,0);bones[4].add(dorsal);
@@ -715,7 +740,7 @@
         ]);
         bones[1].add(new THREE.Mesh(new THREE.TubeGeometry(grooveCurve,18,.011,5,false),grooveMaterial));
       });
-      world.add(root);return {root,bones,fins,flukes,bellyMesh,waveProfile,offset,speed,pathScale,swimOffset:offset*Math.PI*2};
+      world.add(root);return {root,bones,fins,flukeRoot,bellyMesh,waveProfile,motion,offset,speed,pathScale,swimOffset:offset*Math.PI*2};
     }
 
     const pathPoints=[];
@@ -726,8 +751,8 @@
     }
     const swimPath=new THREE.CatmullRomCurve3(pathPoints,true,'centripetal',.45);
     const whales=[
-      createWhale({scale:.72,offset:.22,speed:.0094,hueOffset:0,pathScale:1}),
-      createWhale({scale:.49,offset:.72,speed:.0094,hueOffset:.06,pathScale:1})
+      createWhale({scale:.72,offset:.22,hueOffset:0,pathScale:1}),
+      createWhale({scale:.49,offset:.72,hueOffset:.06,pathScale:1})
     ];
     const axisX=new THREE.Vector3(1,0,0),axisZ=new THREE.Vector3(0,0,1);
     const tangent=new THREE.Vector3(),tangentAhead=new THREE.Vector3(),position=new THREE.Vector3();
@@ -737,12 +762,13 @@
     const targetQuaternion=new THREE.Quaternion(),rollQuaternion=new THREE.Quaternion(),pitchQuaternion=new THREE.Quaternion();
 
     function whaleWave(phase){
-      return Math.sin(phase)+.1*Math.sin(phase*2+.4)+.025*Math.sin(phase*3-.35);
+      return Math.sin(phase)+.035*Math.sin(phase*2+.4)+.008*Math.sin(phase*3-.35);
     }
 
     function animateWhale(whale,time,delta){
       const cycle=(time*whale.speed+whale.offset)%1;
-      const swimRate=1.55*THREE.MathUtils.clamp(whale.speed/.0094,.55,1.5);
+      const motion=whale.motion;
+      const swimRate=Math.PI*2*motion.tailBeatFrequency;
       const stroke=time*swimRate+whale.swimOffset;
       swimPath.getPointAt(cycle,position);swimPath.getTangentAt(cycle,tangent).normalize();
       swimPath.getTangentAt((cycle+.004)%1,tangentAhead).normalize();
@@ -755,31 +781,30 @@
       turnCross.crossVectors(tangent,tangentAhead);
       const curvatureBank=THREE.MathUtils.clamp(worldUp.dot(turnCross)*9,-.24,.24);
       const livingRoll=Math.sin(time*.36+whale.swimOffset)*.025;
-      const livingPitch=whaleWave(stroke-.85)*.018;
+      const livingPitch=whaleWave(stroke-.85)*motion.pitchAmplitude;
       rollQuaternion.setFromAxisAngle(axisX,curvatureBank+livingRoll);
       pitchQuaternion.setFromAxisAngle(axisZ,livingPitch);
       targetQuaternion.multiply(rollQuaternion).multiply(pitchQuaternion);
-      whale.root.quaternion.slerp(targetQuaternion,1-Math.exp(-8*delta));
+      whale.root.quaternion.slerp(targetQuaternion,1-Math.exp(-motion.orientationResponse*delta));
+      let previousTangent=0;
       whale.bones.forEach((bone,index)=>{
         const profile=whale.waveProfile[index];
-        const phase=stroke-profile.s*2.05;
-        bone.rotation.z=whaleWave(phase)*profile.amplitude;
-        bone.rotation.y=Math.sin(stroke*.43-profile.s*.9+.8)*profile.amplitude*.035;
+        const phase=stroke-profile.s*motion.phaseDelay;
+        const desiredTangent=whaleWave(phase)*profile.amplitude;
+        bone.rotation.z=desiredTangent-previousTangent;
+        bone.rotation.x=0;bone.rotation.y=0;
+        previousTangent=desiredTangent;
       });
       whale.fins.forEach(fin=>{
         const side=fin.userData.side;
-        const finPhase=stroke*.48-.65;
-        fin.rotation.x=side*(.24+.055*Math.sin(finPhase));
-        fin.rotation.y=.075+.025*Math.sin(stroke*.28+1.1);
-        fin.rotation.z=-side*(.03+.018*Math.sin(finPhase+.55));
+        const finPhase=stroke*motion.pectoralRate-.65;
+        fin.rotation.x=side*(.24+motion.pectoralAmplitude*Math.sin(finPhase))-curvatureBank*motion.finSteering;
+        fin.rotation.y=.075+motion.pectoralTiltAmplitude*Math.sin(stroke*.22+1.1);
+        fin.rotation.z=-side*(.03+motion.pectoralTiltAmplitude*.75*Math.sin(finPhase+.55));
       });
-      const tailPhase=stroke-2.05,tailWave=whaleWave(tailPhase);
-      whale.flukes.forEach(fluke=>{
-        const side=fluke.userData.side;
-        fluke.rotation.z=-.09*tailWave;
-        fluke.rotation.x=side*(.035+.022*Math.sin(tailPhase+.45));
-      });
-      const heave=(Math.sin(stroke-.72)*.07+Math.sin(stroke*2+.1)*.014)*whale.root.scale.x;
+      const tailPhase=stroke-motion.phaseDelay-motion.flukeLag;
+      whale.flukeRoot.rotation.z=-motion.tailAmplitude*whaleWave(tailPhase);
+      const heave=(Math.sin(stroke-.72)*motion.heaveAmplitude+Math.sin(stroke*2+.1)*motion.heaveHarmonic)*whale.root.scale.x;
       whale.root.position.addScaledVector(pathUp,heave);
     }
 
