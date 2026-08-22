@@ -520,9 +520,10 @@
         [-4.5,.08,.06,.06,.07],[-4.42,.08,.11,.1,.13],[-4.1,.06,.21,.19,.26],
         [-3.65,.03,.34,.31,.4],[-3.1,.01,.46,.4,.52],[-2.45,0,.66,.55,.75],
         [-1.55,0,.84,.69,.99],[-.55,.02,.95,.77,1.16],[.45,.05,1,.84,1.24],
-        [1.35,.07,.95,.88,1.25],[2.1,.07,.82,.84,1.19],[2.75,.05,.66,.73,1.07],
-        [3.3,.02,.5,.59,.94],[3.78,-.03,.36,.45,.78],[4.16,-.06,.29,.37,.66],
-        [4.25,-.06,.27,.35,.61],[4.31,-.06,.22,.29,.5],[4.35,-.06,.1,.13,.23],[4.37,-.06,.018,.022,.035]
+        [1.35,.07,.95,.88,1.25],[2.1,.07,.82,.84,1.19],[2.7,.07,.72,.78,1.14],
+        [3.15,.07,.63,.7,1.08],[3.52,.06,.56,.64,1],[3.82,.04,.5,.59,.91],
+        [4.06,.01,.44,.53,.81],[4.24,-.02,.36,.45,.67],[4.36,-.04,.25,.32,.48],
+        [4.43,-.05,.12,.16,.25],[4.47,-.05,.018,.024,.04]
       ];
       const sample=(x,column)=>{
         if(x<=profile[0][0])return profile[0][column];
@@ -582,7 +583,7 @@
       const bellyRings=52,bellySides=14,bellyPositions=[],bellyUvs=[],bellyIndices=[];
       const bellySkinIndices=[],bellySkinWeights=[];
       for(let i=0;i<=bellyRings;i++){
-        const patchU=i/bellyRings,x=THREE.MathUtils.lerp(-1.65,4.3,patchU);
+        const patchU=i/bellyRings,x=THREE.MathUtils.lerp(-1.65,4.43,patchU);
         const u=(x-tailX)/(headX-tailX);
         const fullOpening=THREE.MathUtils.lerp(.5,.57,THREE.MathUtils.smoothstep(x,.6,2.7));
         const opening=THREE.MathUtils.lerp(.035,fullOpening,THREE.MathUtils.smoothstep(patchU,.01,.16));
@@ -643,33 +644,40 @@
         const eyeGlow=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),eyeGlowMaterial);
         eyeGlow.position.set(.035,.025,side*.047);eye.add(eyeGlow);
         const mouthCurve=new THREE.CatmullRomCurve3([
-          new THREE.Vector3(-1.25,-.18,side*1.16),
-          new THREE.Vector3(-.65,-.28,side*1.08),
-          new THREE.Vector3(.05,-.32,side*.86),
-          new THREE.Vector3(.7,-.26,side*.64),
-          new THREE.Vector3(1.17,-.17,side*.51)
+          new THREE.Vector3(-1.25,-.18,side*1.2),
+          new THREE.Vector3(-.65,-.28,side*1.15),
+          new THREE.Vector3(.05,-.32,side*1.05),
+          new THREE.Vector3(.7,-.26,side*.87),
+          new THREE.Vector3(1.17,-.17,side*.63),
+          new THREE.Vector3(1.38,-.08,side*.23)
         ]);
         const mouth=new THREE.Mesh(
-          new THREE.TubeGeometry(mouthCurve,22,.021,6,false),
-          new THREE.MeshBasicMaterial({color:0x08031a})
+          new THREE.TubeGeometry(mouthCurve,26,.017,6,false),
+          new THREE.MeshBasicMaterial({color:0x140627})
         );
         bones[0].add(mouth);
       });
       const bumpMaterial=new THREE.MeshPhysicalMaterial({color:0x925ee8,roughness:.38,emissive:0x56219d,emissiveIntensity:.28});
-      [[-.95,.865,0],[-.62,.785,.25],[-.62,.785,-.25],[-.18,.645,.42],[-.18,.645,-.42],
-        [.3,.455,.36],[.3,.455,-.36],[.76,.29,.22],[.76,.29,-.22],[1.04,.22,0]].forEach(point=>{
-        const bump=new THREE.Mesh(new THREE.SphereGeometry(.026,9,7),bumpMaterial);
+      [[-.95,.84,0],[-.62,.785,.25],[-.62,.785,-.25],[-.18,.67,.42],[-.18,.67,-.42],
+        [.3,.59,.36],[.3,.59,-.36],[.76,.47,.22],[.76,.47,-.22],[1.04,.35,0],[1.28,.18,0]].forEach((point,index)=>{
+        const bump=new THREE.Mesh(new THREE.SphereGeometry(.028+(index%4)*.0025,9,7),bumpMaterial);
         bump.position.set(point[0],point[1],point[2]);bones[0].add(bump);
       });
+      const blowholeMaterial=new THREE.MeshPhysicalMaterial({color:0x080214,roughness:.18,clearcoat:.7});
+      [-.085,.085].forEach(z=>{
+        const blowhole=new THREE.Mesh(new THREE.SphereGeometry(.055,12,8),blowholeMaterial);
+        blowhole.scale.set(1.3,.22,.58);blowhole.position.set(-.55,.82,z);bones[0].add(blowhole);
+      });
       const finMaterial=new THREE.MeshPhysicalMaterial({
-        color:0xffffff,map:cosmicWhaleTextures.color,emissive:0x8e64ff,emissiveMap:cosmicWhaleTextures.emissive,
-        emissiveIntensity:.36,roughness:.28,clearcoat:.52
+        color:0xe9e2ff,map:cosmicWhaleTextures.color,emissive:0x7440df,emissiveMap:cosmicWhaleTextures.emissive,
+        emissiveIntensity:.48,roughness:.22,clearcoat:.68,clearcoatRoughness:.16,
+        iridescence:.55,iridescenceIOR:1.38
       });
       const pectoralGeometry=createAppendageGeometry(false),flukeGeometry=createAppendageGeometry(true);
       const fins=[];
       [-1,1].forEach(side=>{
         const pivot=new THREE.Group();pivot.position.set(-.12,-.25,side*1.15);pivot.userData.side=side;
-        const fin=new THREE.Mesh(pectoralGeometry,finMaterial);fin.scale.z=side;pivot.add(fin);
+        const fin=new THREE.Mesh(pectoralGeometry,finMaterial);fin.scale.set(1.12,1.08,side*.9);pivot.add(fin);
         bones[1].add(pivot);fins.push(pivot);
       });
       const flukes=[];
@@ -697,21 +705,24 @@
     const pathPoints=[];
     for(let i=0;i<12;i++){
       const angle=i/12*Math.PI*2;
-      pathPoints.push(new THREE.Vector3(Math.cos(angle)*9.2,Math.sin(angle*2+.4)*1.45,Math.sin(angle)*7.7));
+      const height=-Math.sin(angle+.4)*.9+Math.sin(angle*3-.2)*.22;
+      pathPoints.push(new THREE.Vector3(Math.cos(angle)*9.2,height,Math.sin(angle)*7.7));
     }
     const swimPath=new THREE.CatmullRomCurve3(pathPoints,true,'centripetal',.45);
     const whales=[
-      createWhale({scale:.72,offset:.22,speed:.0082,hueOffset:0,pathScale:1}),
-      createWhale({scale:.49,offset:.58,speed:.0068,hueOffset:.06,pathScale:.88})
+      createWhale({scale:.72,offset:.22,speed:.0094,hueOffset:0,pathScale:1}),
+      createWhale({scale:.49,offset:.72,speed:.0094,hueOffset:.06,pathScale:1})
     ];
-    const axisX=new THREE.Vector3(1,0,0),tangent=new THREE.Vector3(),tangentAhead=new THREE.Vector3(),position=new THREE.Vector3();
+    const axisX=new THREE.Vector3(1,0,0),axisZ=new THREE.Vector3(0,0,1);
+    const tangent=new THREE.Vector3(),tangentAhead=new THREE.Vector3(),position=new THREE.Vector3();
     const worldUp=new THREE.Vector3(0,1,0),pathUp=new THREE.Vector3(),pathSide=new THREE.Vector3();
     const turnCross=new THREE.Vector3();
     const orientationMatrix=new THREE.Matrix4();
-    const targetQuaternion=new THREE.Quaternion(),rollQuaternion=new THREE.Quaternion();
+    const targetQuaternion=new THREE.Quaternion(),rollQuaternion=new THREE.Quaternion(),pitchQuaternion=new THREE.Quaternion();
 
     function animateWhale(whale,time,delta){
       const cycle=(time*whale.speed+whale.offset)%1;
+      const stroke=time*1.55+whale.swimOffset;
       swimPath.getPointAt(cycle,position);swimPath.getTangentAt(cycle,tangent).normalize();
       swimPath.getTangentAt((cycle+.004)%1,tangentAhead).normalize();
       whale.root.position.copy(position).multiplyScalar(whale.pathScale);
@@ -723,30 +734,31 @@
       turnCross.crossVectors(tangent,tangentAhead);
       const curvatureBank=THREE.MathUtils.clamp(worldUp.dot(turnCross)*9,-.24,.24);
       const livingRoll=Math.sin(time*.36+whale.swimOffset)*.025;
+      const livingPitch=Math.sin(time*.465+whale.swimOffset-.4)*.05;
       rollQuaternion.setFromAxisAngle(axisX,curvatureBank+livingRoll);
-      targetQuaternion.multiply(rollQuaternion);
+      pitchQuaternion.setFromAxisAngle(axisZ,livingPitch);
+      targetQuaternion.multiply(rollQuaternion).multiply(pitchQuaternion);
       whale.root.quaternion.slerp(targetQuaternion,1-Math.exp(-8*delta));
-      const stroke=time*1.3+whale.swimOffset;
-      const delays=[0,.14,.28,.45,.67,.93,1.2,1.48];
-      const amplitudes=[0,.006,.014,.028,.055,.095,.16,.24];
+      const delays=[0,.13,.27,.43,.63,.86,1.12,1.38];
+      const amplitudes=[0,.008,.019,.038,.074,.125,.205,.31];
       whale.bones.forEach((bone,index)=>{
         const phase=stroke-delays[index];
         const wave=Math.sin(phase)+.14*Math.sin(phase*2-.55);
         bone.rotation.z=wave*amplitudes[index];
-        bone.rotation.y=Math.sin(stroke*.47-delays[index]*.65+.8)*amplitudes[index]*.06;
+        bone.rotation.y=Math.sin(stroke*.47-delays[index]*.65+.8)*amplitudes[index]*.08;
       });
       whale.fins.forEach(fin=>{
         const side=fin.userData.side;
-        fin.rotation.x=side*(.24+.16*Math.sin(stroke*.52-.65)+.035*Math.sin(stroke*1.04));
-        fin.rotation.y=.075+.03*Math.sin(stroke*.31+1.1);
-        fin.rotation.z=-side*(.025+.022*Math.sin(stroke*.52+.2));
+        fin.rotation.x=side*(.24+.21*Math.sin(stroke*.56-.65)+.05*Math.sin(stroke*1.12));
+        fin.rotation.y=.075+.045*Math.sin(stroke*.34+1.1);
+        fin.rotation.z=-side*(.03+.035*Math.sin(stroke*.56+.2));
       });
       whale.flukes.forEach(fluke=>{
         const side=fluke.userData.side;
-        fluke.rotation.z=-.09*Math.sin(stroke-1.35);
-        fluke.rotation.x=side*(.035+.025*Math.sin(stroke-1));
+        fluke.rotation.z=-.14*Math.sin(stroke-1.35);
+        fluke.rotation.x=side*(.04+.042*Math.sin(stroke-1));
       });
-      whale.root.position.y+=Math.sin(stroke*.22)*.04;
+      whale.root.position.y+=Math.sin(time*.52)*.16+Math.sin(time*1.04-.45)*.035;
     }
 
     createStarfield();
