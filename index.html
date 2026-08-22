@@ -89,8 +89,8 @@
     .key:focus-visible { outline:2px solid #a8ddff; outline-offset:3px; }
     .key.empty { visibility:hidden; }
     .key.delete { border-color:transparent; background:transparent; font-size:11px; letter-spacing:.04em; }
-    .lock-message { height:17px; margin:15px 0 0; color:#ffadb9; font-size:11px; opacity:0; transition:opacity .2s ease; }
-    .lock-message.show { opacity:1; }
+    .lock-message { height:17px; margin:15px 0 0; color:#ffadb9; font-size:11px; opacity:0; visibility:hidden; transition:opacity .2s ease,visibility .2s ease; }
+    .lock-message.show { opacity:1; visibility:visible; }
     @keyframes spin { to{transform:rotate(360deg)} }
     @keyframes grain { 0%{transform:translate(0)} 25%{transform:translate(2%,-3%)} 50%{transform:translate(-3%,2%)} 75%{transform:translate(3%,4%)} 100%{transform:translate(-2%,-3%)} }
     @keyframes shake { 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
@@ -99,7 +99,15 @@
       .lock-panel{padding:18px 25px 22px}.lock-date{margin-bottom:28px}
       .keypad{grid-template-columns:repeat(3,64px);gap:10px 20px}.key{width:64px;height:64px}
     }
-    @media (prefers-reduced-motion:reduce) { .grain,.lock-screen::before{animation:none} }
+    @media (max-height:620px) {
+      .lock-screen{place-items:start center;overflow-y:auto;scrollbar-width:none}
+      .lock-screen::-webkit-scrollbar{display:none}
+      .lock-panel{padding:10px 24px 12px}.lock-icon{display:none}.lock-time{font-size:36px}
+      .lock-date{margin:4px 0 10px;font-size:11px}.lock-title{margin-bottom:8px}
+      .pass-dots{margin-bottom:10px}.keypad{grid-template-columns:repeat(3,48px);gap:5px 18px}
+      .key{width:48px;height:48px;font-size:20px}.lock-message{margin-top:7px}
+    }
+    @media (prefers-reduced-motion:reduce) { .grain,.lock-screen::before,.scene-loader::after{animation:none} }
   </style>
   <script type="importmap">
     {
@@ -151,18 +159,21 @@
       const dots=[...document.querySelectorAll('.pass-dot')];
       const dotRow=document.querySelector('#passDots');
       const message=document.querySelector('#lockMessage');
-      let code='',checking=false,unlocked=false;
+      const clockTime=document.querySelector('#lockTime');
+      const clockDate=document.querySelector('#lockDate');
+      let code='',checking=false,unlocked=false,clockTimer;
       const updateClock=()=>{
         const now=new Date();
-        document.querySelector('#lockTime').textContent=now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false});
-        document.querySelector('#lockDate').textContent=now.toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'long'});
+        clockTime.textContent=now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false});
+        clockDate.textContent=now.toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'long'});
       };
       const renderCode=()=>{
         dots.forEach((dot,index)=>dot.classList.toggle('filled',index<code.length));
         dotRow.setAttribute('aria-label','Đã nhập '+code.length+' trên 4 số');
       };
       const unlock=()=>{
-        unlocked=true;message.classList.remove('show');screen.classList.add('unlocked');
+        unlocked=true;clearInterval(clockTimer);message.classList.remove('show');screen.classList.add('unlocked');
+        if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
         screen.setAttribute('aria-hidden','true');setTimeout(()=>screen.remove(),900);
       };
       const reject=()=>{
@@ -181,11 +192,11 @@
         if(checking||unlocked)return;code=code.slice(0,-1);message.classList.remove('show');renderCode();
       });
       addEventListener('keydown',event=>{
-        if(unlocked)return;
+        if(unlocked||event.repeat)return;
         if(/^[0-9]$/.test(event.key))addNumber(event.key);
         if(event.key==='Backspace'&&!checking){code=code.slice(0,-1);renderCode()}
       });
-      updateClock();setInterval(updateClock,30000);
+      updateClock();clockTimer=setInterval(updateClock,30000);
     })();
   </script>
 
@@ -365,8 +376,8 @@
       'varying float vPulse;',
       'void main(){',
       'float d=distance(gl_PointCoord,vec2(.5));',
-      'float alpha=smoothstep(.5,.04,d)*vPulse;',
-      'float core=smoothstep(.18,0.0,d);',
+      'float alpha=(1.0-smoothstep(.04,.5,d))*vPulse;',
+      'float core=1.0-smoothstep(0.0,.18,d);',
       'gl_FragColor=vec4(vColor+core*.5,alpha);',
       '}'
     ].join('\n');
@@ -613,6 +624,11 @@
       root.scale.setScalar(scale);
       const result=createWhaleGeometry();
       const geometry=result.geometry,bellyGeometry=result.bellyGeometry,boneXs=result.boneXs,boneYs=result.boneYs;
+      const waveLength=boneXs[0]-boneXs[boneXs.length-1];
+      const waveProfile=boneXs.map(x=>{
+        const s=(boneXs[0]-x)/waveLength;
+        return {s,amplitude:.004+Math.pow(s,2.15)*.225};
+      });
       const bodyMaterial=new THREE.MeshPhysicalMaterial({
         color:0xffffff,map:cosmicWhaleTextures.color,roughness:.24,metalness:.03,clearcoat:.72,clearcoatRoughness:.18,
         emissive:0xb06dff,emissiveMap:cosmicWhaleTextures.emissive,emissiveIntensity:.44,
@@ -699,7 +715,7 @@
         ]);
         bones[1].add(new THREE.Mesh(new THREE.TubeGeometry(grooveCurve,18,.011,5,false),grooveMaterial));
       });
-      world.add(root);return {root,bones,fins,flukes,bellyMesh,offset,speed,pathScale,swimOffset:offset*Math.PI*2};
+      world.add(root);return {root,bones,fins,flukes,bellyMesh,waveProfile,offset,speed,pathScale,swimOffset:offset*Math.PI*2};
     }
 
     const pathPoints=[];
@@ -720,9 +736,14 @@
     const orientationMatrix=new THREE.Matrix4();
     const targetQuaternion=new THREE.Quaternion(),rollQuaternion=new THREE.Quaternion(),pitchQuaternion=new THREE.Quaternion();
 
+    function whaleWave(phase){
+      return Math.sin(phase)+.1*Math.sin(phase*2+.4)+.025*Math.sin(phase*3-.35);
+    }
+
     function animateWhale(whale,time,delta){
       const cycle=(time*whale.speed+whale.offset)%1;
-      const stroke=time*1.55+whale.swimOffset;
+      const swimRate=1.55*THREE.MathUtils.clamp(whale.speed/.0094,.55,1.5);
+      const stroke=time*swimRate+whale.swimOffset;
       swimPath.getPointAt(cycle,position);swimPath.getTangentAt(cycle,tangent).normalize();
       swimPath.getTangentAt((cycle+.004)%1,tangentAhead).normalize();
       whale.root.position.copy(position).multiplyScalar(whale.pathScale);
@@ -734,31 +755,32 @@
       turnCross.crossVectors(tangent,tangentAhead);
       const curvatureBank=THREE.MathUtils.clamp(worldUp.dot(turnCross)*9,-.24,.24);
       const livingRoll=Math.sin(time*.36+whale.swimOffset)*.025;
-      const livingPitch=Math.sin(time*.465+whale.swimOffset-.4)*.05;
+      const livingPitch=whaleWave(stroke-.85)*.018;
       rollQuaternion.setFromAxisAngle(axisX,curvatureBank+livingRoll);
       pitchQuaternion.setFromAxisAngle(axisZ,livingPitch);
       targetQuaternion.multiply(rollQuaternion).multiply(pitchQuaternion);
       whale.root.quaternion.slerp(targetQuaternion,1-Math.exp(-8*delta));
-      const delays=[0,.13,.27,.43,.63,.86,1.12,1.38];
-      const amplitudes=[0,.008,.019,.038,.074,.125,.205,.31];
       whale.bones.forEach((bone,index)=>{
-        const phase=stroke-delays[index];
-        const wave=Math.sin(phase)+.14*Math.sin(phase*2-.55);
-        bone.rotation.z=wave*amplitudes[index];
-        bone.rotation.y=Math.sin(stroke*.47-delays[index]*.65+.8)*amplitudes[index]*.08;
+        const profile=whale.waveProfile[index];
+        const phase=stroke-profile.s*2.05;
+        bone.rotation.z=whaleWave(phase)*profile.amplitude;
+        bone.rotation.y=Math.sin(stroke*.43-profile.s*.9+.8)*profile.amplitude*.035;
       });
       whale.fins.forEach(fin=>{
         const side=fin.userData.side;
-        fin.rotation.x=side*(.24+.21*Math.sin(stroke*.56-.65)+.05*Math.sin(stroke*1.12));
-        fin.rotation.y=.075+.045*Math.sin(stroke*.34+1.1);
-        fin.rotation.z=-side*(.03+.035*Math.sin(stroke*.56+.2));
+        const finPhase=stroke*.48-.65;
+        fin.rotation.x=side*(.24+.055*Math.sin(finPhase));
+        fin.rotation.y=.075+.025*Math.sin(stroke*.28+1.1);
+        fin.rotation.z=-side*(.03+.018*Math.sin(finPhase+.55));
       });
+      const tailPhase=stroke-2.05,tailWave=whaleWave(tailPhase);
       whale.flukes.forEach(fluke=>{
         const side=fluke.userData.side;
-        fluke.rotation.z=-.14*Math.sin(stroke-1.35);
-        fluke.rotation.x=side*(.04+.042*Math.sin(stroke-1));
+        fluke.rotation.z=-.09*tailWave;
+        fluke.rotation.x=side*(.035+.022*Math.sin(tailPhase+.45));
       });
-      whale.root.position.y+=Math.sin(time*.52)*.16+Math.sin(time*1.04-.45)*.035;
+      const heave=(Math.sin(stroke-.72)*.07+Math.sin(stroke*2+.1)*.014)*whale.root.scale.x;
+      whale.root.position.addScaledVector(pathUp,heave);
     }
 
     createStarfield();
@@ -814,8 +836,8 @@
       galaxy.rotation.y=time*.028;galaxy.rotation.x=Math.sin(time*.045)*.025;
       galaxy.userData.uniforms.uTime.value=time;whales.forEach(whale=>animateWhale(whale,time,delta));
       if(cameraTransition){
-        camera.position.lerp(cameraTransition.position,.045);
-        controls.target.lerp(cameraTransition.target,.055);
+        camera.position.lerp(cameraTransition.position,1-Math.exp(-2.76*delta));
+        controls.target.lerp(cameraTransition.target,1-Math.exp(-3.4*delta));
         if(camera.position.distanceTo(cameraTransition.position)<.035)cameraTransition=null;
       }
       controls.update();
