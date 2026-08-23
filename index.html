@@ -481,7 +481,7 @@
     }
 
     const DEFAULT_CHARACTER_SETTINGS=Object.freeze({
-      size:1.22,
+      size:1.28,
       x:0,
       y:.035,
       z:.12,
@@ -548,6 +548,7 @@
       root.add(motion);motion.add(content);content.add(model);world.add(root);
 
       const ownedGeometries=new Set(),ownedMaterials=new Set(),ownedTextures=new Set(),ownedInstancedMeshes=new Set();
+      const fineDetails=[];
       const ownGeometry=geometry=>{ownedGeometries.add(geometry);return geometry};
       const ownMaterial=material=>{ownedMaterials.add(material);return material};
       const ownInstancedMesh=mesh=>{ownedInstancedMeshes.add(mesh);return mesh};
@@ -560,38 +561,68 @@
       let randomState=0x5f3759df;
       const random=()=>{randomState=(randomState*1664525+1013904223)>>>0;return randomState/4294967296};
 
+      function createEmbroideryTexture(){
+        const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
+        canvas.width=canvas.height=256;context.fillStyle='#fffaf0';context.fillRect(0,0,256,256);
+        context.strokeStyle='rgba(174,116,89,.28)';context.fillStyle='rgba(255,255,255,.72)';context.lineWidth=1.6;
+        for(let y=16;y<256;y+=32){
+          for(let x=16+(y/32%2)*16;x<256;x+=32){
+            context.beginPath();context.arc(x,y,7,0,Math.PI*2);context.stroke();
+            for(let petal=0;petal<6;petal++){
+              const angle=petal*Math.PI/3,px=x+Math.cos(angle)*8,py=y+Math.sin(angle)*8;
+              context.beginPath();context.ellipse(px,py,5,2.2,angle,0,Math.PI*2);context.fill();context.stroke();
+            }
+            context.beginPath();context.moveTo(x+10,y+10);context.quadraticCurveTo(x+16,y+16,x+22,y+10);context.stroke();
+          }
+        }
+        const texture=new THREE.CanvasTexture(canvas);
+        texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+        texture.repeat.set(4.5,6.5);texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+        return texture;
+      }
+      const embroideryTexture=createEmbroideryTexture();ownedTextures.add(embroideryTexture);
+
       const skinMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0xffd0c4,roughness:.56,metalness:0,clearcoat:.12,clearcoatRoughness:.76,
-        sheen:.28,sheenColor:0xffb3a8,emissive:0xff776a,emissiveIntensity:.1
+        color:0xffc9bf,roughness:.63,metalness:0,clearcoat:.08,clearcoatRoughness:.84,
+        sheen:.2,sheenColor:0xffaaa0,sheenRoughness:.78,emissive:0xa83f3a,emissiveIntensity:.075
       }));
       const hairMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0x111522,roughness:.34,metalness:0,clearcoat:.28,clearcoatRoughness:.38,
-        sheen:1,sheenColor:0x59618c,sheenRoughness:.5,emissive:0x25164d,emissiveIntensity:.18
+        color:0x090c15,roughness:.41,metalness:0,clearcoat:.18,clearcoatRoughness:.55,
+        sheen:1,sheenColor:0x4a5576,sheenRoughness:.6,emissive:0x060310,emissiveIntensity:.04
       }));
       const hairAccentMaterial=ownMaterial(hairMaterial.clone());
-      hairAccentMaterial.color.set(0x22283c);hairAccentMaterial.emissive.set(0x35236c);
+      hairAccentMaterial.color.set(0x171c2b);hairAccentMaterial.emissive.set(0x110824);hairAccentMaterial.emissiveIntensity=.055;
       const dressMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0xf3dfbd,roughness:.66,metalness:0,clearcoat:.12,clearcoatRoughness:.78,
-        sheen:1,sheenColor:0xfff3df,sheenRoughness:.62,emissive:0xffbd78,emissiveIntensity:.11
+        color:0xf3dfbd,map:embroideryTexture,roughness:.66,metalness:0,clearcoat:.12,clearcoatRoughness:.78,
+        sheen:1,sheenColor:0xfff3df,sheenRoughness:.62,emissive:0x8c5f35,emissiveIntensity:.05
       }));
       const laceMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0xffefd5,roughness:.62,metalness:0,clearcoat:.14,clearcoatRoughness:.7,
-        sheen:1,sheenColor:0xffffff,sheenRoughness:.58,emissive:0xffd4a2,emissiveIntensity:.12,
+        color:0xffefd5,map:embroideryTexture,roughness:.62,metalness:0,clearcoat:.14,clearcoatRoughness:.7,
+        sheen:1,sheenColor:0xffffff,sheenRoughness:.58,emissive:0xc99061,emissiveIntensity:.05,
         side:THREE.DoubleSide
       }));
       const dressDetailMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0xfff1da,roughness:.54,metalness:0,emissive:0xffcb91,emissiveIntensity:.1
+        color:0xfff1da,map:embroideryTexture,roughness:.54,metalness:0,emissive:0xb77848,emissiveIntensity:.045
       }));
       const eyeMaterial=ownMaterial(new THREE.MeshBasicMaterial({color:0x24111a}));
+      const browMaterial=ownMaterial(new THREE.MeshBasicMaterial({color:0x322229}));
       const lipMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
-        color:0xb84b60,roughness:.42,clearcoat:.28,clearcoatRoughness:.45,emissive:0x3b0916,emissiveIntensity:.12
+        color:0xb95368,roughness:.38,clearcoat:.3,clearcoatRoughness:.42,emissive:0x26050c,emissiveIntensity:.035
+      }));
+      const lipCreaseMaterial=ownMaterial(new THREE.MeshBasicMaterial({color:0x702432}));
+      const nostrilMaterial=ownMaterial(new THREE.MeshBasicMaterial({color:0x8c4653,transparent:true,opacity:.64,depthWrite:false}));
+      const eyeShadowMaterial=ownMaterial(new THREE.MeshBasicMaterial({
+        color:0xe8958d,transparent:true,opacity:.1,depthWrite:false
       }));
       const pearlMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
         color:0xfff5e3,roughness:.2,metalness:.04,clearcoat:1,clearcoatRoughness:.16,
         emissive:0x4b3a57,emissiveIntensity:.1
       }));
       const blushMaterial=ownMaterial(new THREE.MeshBasicMaterial({
-        color:0xff7893,transparent:true,opacity:.18,depthWrite:false
+        color:0xff8290,transparent:true,opacity:.09,depthWrite:false
+      }));
+      const nailMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xffddd5,roughness:.34,clearcoat:.5,clearcoatRoughness:.34,emissive:0x2a0a10,emissiveIntensity:.025
       }));
 
       function createTaperedTubeGeometry(points,startRadius,endRadius,tubularSegments=18,radialSegments=6){
@@ -642,6 +673,46 @@
       function addCurve(curve,radius,material,parent,segments=12){
         const geometry=ownGeometry(new THREE.TubeGeometry(curve,segments,radius,6,false));
         const mesh=new THREE.Mesh(geometry,material);parent.add(mesh);return mesh;
+      }
+
+      function createRibbonGeometry(points,startWidth,endWidth,thickness=.014,segments=18){
+        const curve=new THREE.CatmullRomCurve3(points,false,'centripetal');
+        const positions=[],uvs=[],indices=[];
+        const center=new THREE.Vector3(),tangent=new THREE.Vector3(),sideVector=new THREE.Vector3();
+        const front=new THREE.Vector3(0,0,1);
+        for(let i=0;i<=segments;i++){
+          const u=i/segments;
+          curve.getPointAt(u,center);curve.getTangentAt(u,tangent);
+          sideVector.crossVectors(tangent,front).normalize();
+          if(sideVector.lengthSq()<.1)sideVector.set(1,0,0);
+          const width=THREE.MathUtils.lerp(startWidth,endWidth,u*u*(3-2*u));
+          const halfSide=sideVector.clone().multiplyScalar(width*.5);
+          const halfDepth=front.clone().multiplyScalar(thickness*.5);
+          const vertices=[
+            center.clone().add(halfSide).add(halfDepth),center.clone().sub(halfSide).add(halfDepth),
+            center.clone().add(halfSide).sub(halfDepth),center.clone().sub(halfSide).sub(halfDepth)
+          ];
+          vertices.forEach((vertex,index)=>{positions.push(vertex.x,vertex.y,vertex.z);uvs.push(index%2,u)});
+        }
+        for(let i=0;i<segments;i++){
+          const a=i*4,b=(i+1)*4;
+          indices.push(a,b,b+1,a,b+1,a+1,a+2,a+3,b+3,a+2,b+3,b+2);
+          indices.push(a,a+2,b+2,a,b+2,b,a+1,b+1,b+3,a+1,b+3,a+3);
+        }
+        indices.push(0,1,3,0,3,2,segments*4,segments*4+2,segments*4+3,segments*4,segments*4+3,segments*4+1);
+        const geometry=new THREE.BufferGeometry();
+        geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+        geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+        geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();return geometry;
+      }
+
+      function addRibbon(points,startWidth,endWidth,thickness,material,parent=model,animated=true){
+        const origin=points[0].clone();
+        const localPoints=points.map(point=>point.clone().sub(origin));
+        const mesh=new THREE.Mesh(ownGeometry(createRibbonGeometry(localPoints,startWidth,endWidth,thickness)),material);
+        mesh.position.copy(origin);parent.add(mesh);
+        if(animated)animatedLocks.push({mesh,phase:random()*Math.PI*2,amount:.55+random()*.42});
+        return mesh;
       }
 
       function addCapsuleBetween(start,end,radius,material,parent=model,radialSegments=16){
@@ -698,6 +769,8 @@
       neck.position.set(0,3.34,.025);
       const choker=createMesh(ownGeometry(new THREE.TorusGeometry(.205,.043,7,32)),laceMaterial);
       choker.rotation.x=Math.PI/2;choker.position.set(0,3.39,.025);choker.scale.set(1,.92,1);
+      addCapsuleBetween(new THREE.Vector3(-.12,3.15,.31),new THREE.Vector3(-.53,3.05,.22),.032,skinMaterial,torsoBreath,10);
+      addCapsuleBetween(new THREE.Vector3(.12,3.15,.31),new THREE.Vector3(.53,3.05,.22),.032,skinMaterial,torsoBreath,10);
 
       const buttonGeometry=ownGeometry(new THREE.SphereGeometry(.032,10,8));
       const buttons=ownInstancedMesh(new THREE.InstancedMesh(buttonGeometry,pearlMaterial,7));
@@ -717,25 +790,27 @@
       }
       backLoops.instanceMatrix.needsUpdate=true;backLoops.computeBoundingSphere();model.add(backLoops);
 
-      const prayerRig=new THREE.Group();model.add(prayerRig);
+      const basePrayerY=0;
+      const prayerRig=new THREE.Group();prayerRig.position.set(0,basePrayerY,-.035);model.add(prayerRig);
+      const handsRig=new THREE.Group();handsRig.position.y=-.16;prayerRig.add(handsRig);
       const armCoordinates=[
         {
           side:-1,
           shoulder:new THREE.Vector3(-.76,3.05,.03),
           elbow:new THREE.Vector3(-1.03,2.18,.48),
-          wrist:new THREE.Vector3(-.25,3.36,.76)
+          wrist:new THREE.Vector3(-.25,3.13,.76)
         },
         {
           side:1,
           shoulder:new THREE.Vector3(.76,3.05,.03),
           elbow:new THREE.Vector3(.98,2.08,.53),
-          wrist:new THREE.Vector3(.23,3.34,.82)
+          wrist:new THREE.Vector3(.23,3.12,.8)
         }
       ];
       armCoordinates.forEach(({side,shoulder,elbow,wrist})=>{
-        addCapsuleBetween(shoulder,elbow,.16,skinMaterial,prayerRig);
-        addCapsuleBetween(elbow,wrist,.138,skinMaterial,prayerRig);
-        const elbowJoint=createMesh(ownGeometry(new THREE.SphereGeometry(.155,16,12)),skinMaterial,prayerRig);
+        addCapsuleBetween(shoulder,elbow,.148,skinMaterial,prayerRig);
+        addCapsuleBetween(elbow,wrist,.116,skinMaterial,prayerRig);
+        const elbowJoint=createMesh(ownGeometry(new THREE.SphereGeometry(.138,16,12)),skinMaterial,prayerRig);
         elbowJoint.position.copy(elbow);
         const upperDirection=elbow.clone().sub(shoulder).normalize();
         const puffCenter=shoulder.clone().lerp(elbow,.18);
@@ -752,12 +827,12 @@
         shoulderPearl.userData.side=side;
       });
 
-      const palmGeometry=ownGeometry(new THREE.CapsuleGeometry(.14,.21,7,18));
+      const palmGeometry=ownGeometry(new THREE.CapsuleGeometry(.12,.22,7,18));
       [-1,1].forEach(side=>{
-        const palm=createMesh(palmGeometry,skinMaterial,prayerRig);
-        palm.position.set(side*.085,3.57,side<0?.84:.88);
-        palm.rotation.set(.12,side*.035,side*.22);
-        palm.scale.set(.88,1,.58);
+        const palm=createMesh(palmGeometry,skinMaterial,handsRig);
+        palm.position.set(side*.088,3.5,side<0?.85:.875);
+        palm.rotation.set(.09,side*.04,side*.17);
+        palm.scale.set(.9,1,.52);
       });
 
       function setCapsuleInstance(instanced,index,center,direction,length,baseLength){
@@ -768,134 +843,259 @@
         instanced.setMatrixAt(index,instanceMatrix);
       }
 
-      const fingerBaseLength=.186;
-      const fingerGeometry=ownGeometry(new THREE.CapsuleGeometry(.037,fingerBaseLength-.074,5,10));
-      const fingers=ownInstancedMesh(new THREE.InstancedMesh(fingerGeometry,skinMaterial,8));
+      const fingerBaseLength=.112;
+      const fingerGeometry=ownGeometry(new THREE.CapsuleGeometry(.024,fingerBaseLength-.048,5,10));
+      const fingers=ownInstancedMesh(new THREE.InstancedMesh(fingerGeometry,skinMaterial,16));
+      const nailGeometry=ownGeometry(new THREE.SphereGeometry(1,12,8));
+      const nails=ownInstancedMesh(new THREE.InstancedMesh(nailGeometry,nailMaterial,8));
+      fineDetails.push(nails);
       let fingerIndex=0;
       [-1,1].forEach(side=>{
         for(let i=0;i<4;i++){
-          const center=new THREE.Vector3(side*.018,3.69+i*.038,.972+(i%2)*.014+side*.004);
-          const direction=new THREE.Vector3(-side,.16+(i%2)*.08,side*.035);
-          setCapsuleInstance(fingers,fingerIndex++,center,direction,.184-i*.008,fingerBaseLength);
+          const weave=(i+(side>0?1:0))%2===0?.02:-.014;
+          const rootPoint=new THREE.Vector3(side*.12,3.595+i*.041,.94+weave);
+          const jointPoint=new THREE.Vector3(side*.018,rootPoint.y+(i%2?.009:-.005),.965-weave*.22);
+          const tipPoint=new THREE.Vector3(-side*(.07+i*.006),rootPoint.y+(i%2?.018:-.012),.982-weave);
+          const firstCenter=rootPoint.clone().add(jointPoint).multiplyScalar(.5);
+          const secondCenter=jointPoint.clone().add(tipPoint).multiplyScalar(.5);
+          const firstDirection=jointPoint.clone().sub(rootPoint);
+          const secondDirection=tipPoint.clone().sub(jointPoint);
+          setCapsuleInstance(fingers,fingerIndex++,firstCenter,firstDirection,firstDirection.length(),fingerBaseLength);
+          setCapsuleInstance(fingers,fingerIndex++,secondCenter,secondDirection,secondDirection.length(),fingerBaseLength);
+          const nailQuaternion=new THREE.Quaternion().setFromAxisAngle(axisZ,-side*(.08+i*.012));
+          instanceMatrix.compose(tipPoint.clone().add(new THREE.Vector3(0,.006,.018)),nailQuaternion,new THREE.Vector3(.043,.02,.009));
+          nails.setMatrixAt((side<0?0:4)+i,instanceMatrix);
         }
       });
-      fingers.instanceMatrix.needsUpdate=true;fingers.computeBoundingSphere();prayerRig.add(fingers);
+      fingers.instanceMatrix.needsUpdate=true;fingers.computeBoundingSphere();handsRig.add(fingers);
+      nails.instanceMatrix.needsUpdate=true;nails.computeBoundingSphere();handsRig.add(nails);
 
-      const thumbBaseLength=.27;
-      const thumbGeometry=ownGeometry(new THREE.CapsuleGeometry(.047,thumbBaseLength-.094,5,10));
+      const thumbBaseLength=.22;
+      const thumbGeometry=ownGeometry(new THREE.CapsuleGeometry(.035,thumbBaseLength-.07,5,10));
       const thumbs=ownInstancedMesh(new THREE.InstancedMesh(thumbGeometry,skinMaterial,2));
-      setCapsuleInstance(thumbs,0,new THREE.Vector3(-.035,3.61,1.0),new THREE.Vector3(.55,.76,.08),.27,thumbBaseLength);
-      setCapsuleInstance(thumbs,1,new THREE.Vector3(.035,3.615,1.015),new THREE.Vector3(-.55,.76,-.08),.27,thumbBaseLength);
-      thumbs.instanceMatrix.needsUpdate=true;thumbs.computeBoundingSphere();prayerRig.add(thumbs);
+      setCapsuleInstance(thumbs,0,new THREE.Vector3(-.045,3.55,.976),new THREE.Vector3(.44,.89,.11),.22,thumbBaseLength);
+      setCapsuleInstance(thumbs,1,new THREE.Vector3(.045,3.555,.99),new THREE.Vector3(-.44,.89,-.11),.22,thumbBaseLength);
+      thumbs.instanceMatrix.needsUpdate=true;thumbs.computeBoundingSphere();handsRig.add(thumbs);
 
-      const hairBack=createMesh(ownGeometry(new THREE.CapsuleGeometry(.68,2.25,8,24)),hairMaterial);
-      hairBack.position.set(0,3.03,-.31);hairBack.scale.set(.9,1,.56);
+      const hairBack=createMesh(ownGeometry(new THREE.CapsuleGeometry(.68,2.3,8,28)),hairMaterial);
+      hairBack.position.set(0,3.02,-.31);hairBack.scale.set(1.04,1,.66);
 
-      for(let i=0;i<8;i++){
-        const x=(i-3.5)*.145;
+      for(let i=0;i<10;i++){
+        const x=(i-4.5)*.125;
         addTaperedLock([
-          new THREE.Vector3(x*.72,4.66,-.24),
-          new THREE.Vector3(x,3.82,-.45-Math.cos(i)*.025),
-          new THREE.Vector3(x*1.12,2.55,-.42),
-          new THREE.Vector3(x*1.05,1.28+(i%3)*.08,-.24)
-        ],.105,.032,i%2?hairAccentMaterial:hairMaterial);
+          new THREE.Vector3(x*.68,4.7,-.22),
+          new THREE.Vector3(x*.94,3.9,-.49-Math.cos(i)*.022),
+          new THREE.Vector3(x*1.1,2.58,-.47),
+          new THREE.Vector3(x*1.02,1.22+(i%3)*.075,-.24)
+        ],.086,.022,i%3===0?hairAccentMaterial:hairMaterial);
       }
       [-1,1].forEach(side=>{
+        addRibbon([
+          new THREE.Vector3(side*.46,4.67,.16),
+          new THREE.Vector3(side*.65,3.94,.4),
+          new THREE.Vector3(side*.73,2.7,.34),
+          new THREE.Vector3(side*.64,1.32,.07)
+        ],.18,.052,.022,hairMaterial);
+        addRibbon([
+          new THREE.Vector3(side*.27,4.74,.23),
+          new THREE.Vector3(side*.43,3.93,.48),
+          new THREE.Vector3(side*.52,2.68,.37),
+          new THREE.Vector3(side*.43,1.54,.1)
+        ],.135,.04,.018,hairAccentMaterial);
         addTaperedLock([
-          new THREE.Vector3(side*.43,4.66,.18),
-          new THREE.Vector3(side*.63,3.92,.42),
-          new THREE.Vector3(side*.72,2.7,.35),
-          new THREE.Vector3(side*.63,1.38,.08)
-        ],.115,.035,hairMaterial);
-        addTaperedLock([
-          new THREE.Vector3(side*.24,4.72,.25),
-          new THREE.Vector3(side*.4,3.9,.5),
-          new THREE.Vector3(side*.49,2.7,.39),
-          new THREE.Vector3(side*.4,1.62,.12)
-        ],.09,.028,hairAccentMaterial);
+          new THREE.Vector3(side*.57,4.48,-.18),
+          new THREE.Vector3(side*.7,3.65,-.23),
+          new THREE.Vector3(side*.73,2.55,-.2),
+          new THREE.Vector3(side*.61,1.42,-.12)
+        ],.074,.019,hairMaterial);
       });
 
       const headPivot=new THREE.Group();
       headPivot.position.set(0,3.52,.035);
-      headPivot.rotation.set(.32,-.06,0);
+      headPivot.rotation.set(.375,-.075,-.012);
       model.add(headPivot);
-      const head=createMesh(ownGeometry(new THREE.SphereGeometry(1,36,28)),skinMaterial,headPivot);
-      head.position.set(0,.62,0);head.scale.set(.66,.82,.62);
+
+      const faceGeometry=ownGeometry(new THREE.SphereGeometry(1,48,36));
+      const facePositions=faceGeometry.attributes.position;
+      for(let i=0;i<facePositions.count;i++){
+        const unitX=facePositions.getX(i),unitY=facePositions.getY(i),unitZ=facePositions.getZ(i);
+        const jaw=.8+.2*THREE.MathUtils.smoothstep(unitY,-.72,.1);
+        const cheek=1+.045*Math.exp(-Math.pow((unitY+.04)/.27,2));
+        const forehead=.97+.03*THREE.MathUtils.smoothstep(unitY,.18,.78);
+        const depth=.62*(.88+.12*THREE.MathUtils.smoothstep(unitY,-.65,.1));
+        let z=unitZ*depth;
+        if(unitZ>0)z+=.016*(1-unitY*unitY)+.014*(1-THREE.MathUtils.smoothstep(unitY,-.82,-.46));
+        facePositions.setXYZ(i,unitX*.66*jaw*cheek*forehead,.62+unitY*.82,z);
+      }
+      faceGeometry.computeVertexNormals();faceGeometry.computeBoundingSphere();
+      const head=createMesh(faceGeometry,skinMaterial,headPivot);
+
+      function faceSurfaceZ(x,y,push=.016){
+        const unitY=THREE.MathUtils.clamp((y-.62)/.82,-1,1);
+        const jaw=.8+.2*THREE.MathUtils.smoothstep(unitY,-.72,.1);
+        const cheek=1+.045*Math.exp(-Math.pow((unitY+.04)/.27,2));
+        const forehead=.97+.03*THREE.MathUtils.smoothstep(unitY,.18,.78);
+        const radiusX=.66*jaw*cheek*forehead;
+        const depth=.62*(.88+.12*THREE.MathUtils.smoothstep(unitY,-.65,.1));
+        const radial=Math.max(0,1-Math.pow(x/radiusX,2)-unitY*unitY);
+        const bulge=.016*(1-unitY*unitY)+.014*(1-THREE.MathUtils.smoothstep(unitY,-.82,-.46));
+        return Math.sqrt(radial)*depth+bulge+push;
+      }
+      const facePoint=(x,y,push=.016)=>new THREE.Vector3(x,y,faceSurfaceZ(x,y,push));
+      const detailSphereGeometry=ownGeometry(new THREE.SphereGeometry(1,20,14));
+      const chin=createMesh(detailSphereGeometry,skinMaterial,headPivot);
+      chin.position.set(0,-.105,faceSurfaceZ(0,-.105,-.018));chin.scale.set(.17,.082,.115);
+
+      const earGeometry=ownGeometry(new THREE.SphereGeometry(1,18,12));
+      [-1,1].forEach(side=>{
+        const ear=createMesh(earGeometry,skinMaterial,headPivot);
+        ear.position.set(side*.632,.63,-.018);ear.scale.set(.074,.165,.052);ear.rotation.z=-side*.035;
+        const innerEar=createMesh(ownGeometry(new THREE.TorusGeometry(.052,.009,5,18)),nostrilMaterial,headPivot);
+        innerEar.position.set(side*.676,.63,-.006);innerEar.rotation.y=Math.PI/2;innerEar.scale.set(.92,1.42,1);
+      });
+
       const hairCap=createMesh(
-        ownGeometry(new THREE.SphereGeometry(1,36,20,0,Math.PI*2,0,Math.PI*.7)),
+        ownGeometry(new THREE.SphereGeometry(1,42,24,0,Math.PI*2,0,Math.PI*.64)),
         hairMaterial,headPivot
       );
-      hairCap.position.set(0,.68,-.14);hairCap.scale.set(.74,.9,.58);
-      const crownKnot=createMesh(ownGeometry(new THREE.SphereGeometry(.3,24,16)),hairAccentMaterial,headPivot);
-      crownKnot.position.set(0,1.37,-.09);crownKnot.scale.set(1.18,.58,.82);
+      hairCap.position.set(0,.7,-.08);hairCap.scale.set(.725,.875,.67);
+      const crownKnot=createMesh(ownGeometry(new THREE.SphereGeometry(.28,28,18)),hairAccentMaterial,headPivot);
+      crownKnot.position.set(0,1.37,-.08);crownKnot.scale.set(1.18,.56,.82);
+      const knotBraid=createMesh(ownGeometry(new THREE.TorusGeometry(.205,.038,7,32)),hairMaterial,headPivot);
+      knotBraid.position.set(0,1.39,.04);knotBraid.rotation.x=.34;knotBraid.scale.set(1,.72,1);
 
-      for(let i=-3;i<=3;i++){
-        const x=i*.092;
-        addTaperedLock([
-          new THREE.Vector3(x*.5,1.27,.2),
-          new THREE.Vector3(x*.86,1.05,.5),
-          new THREE.Vector3(x*1.18,.84+Math.abs(i)*.014,.628)
-        ],.07,.024,i%2?hairAccentMaterial:hairMaterial,headPivot,false);
+      for(let i=-4;i<=4;i++){
+        const tipX=i*.086+Math.sin(i*1.7)*.024;
+        const tipY=.765+Math.abs(i)*.027+(Math.abs(i)%2?.026:0);
+        addRibbon([
+          new THREE.Vector3(i*.052,1.29,faceSurfaceZ(i*.052,1.29,.03)),
+          new THREE.Vector3(i*.074+Math.sin(i*.9)*.012,1.07,faceSurfaceZ(i*.074+Math.sin(i*.9)*.012,1.07,.033)),
+          new THREE.Vector3(tipX,tipY,faceSurfaceZ(tipX,tipY,.035))
+        ],.076,.002,.014,i%4===0?hairAccentMaterial:hairMaterial,headPivot,false);
       }
-
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(-.35,.79,.57),new THREE.Vector3(-.22,.745,.615),new THREE.Vector3(-.09,.79,.585)
-      ),.014,eyeMaterial,headPivot);
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(.09,.79,.585),new THREE.Vector3(.22,.745,.615),new THREE.Vector3(.35,.79,.57)
-      ),.014,eyeMaterial,headPivot);
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(-.34,.94,.545),new THREE.Vector3(-.22,.98,.57),new THREE.Vector3(-.1,.945,.56)
-      ),.012,hairMaterial,headPivot);
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(.1,.945,.56),new THREE.Vector3(.22,.98,.57),new THREE.Vector3(.34,.94,.545)
-      ),.012,hairMaterial,headPivot);
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(-.15,.405,.61),new THREE.Vector3(0,.36,.65),new THREE.Vector3(.15,.405,.61)
-      ),.018,lipMaterial,headPivot);
-      addCurve(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(-.14,.38,.612),new THREE.Vector3(0,.335,.645),new THREE.Vector3(.14,.38,.612)
-      ),.013,lipMaterial,headPivot);
-      const noseBridge=createMesh(ownGeometry(new THREE.CapsuleGeometry(.035,.08,5,10)),skinMaterial,headPivot);
-      noseBridge.position.set(0,.6,.595);
-      const noseTip=createMesh(ownGeometry(new THREE.SphereGeometry(.066,14,10)),skinMaterial,headPivot);
-      noseTip.position.set(0,.535,.645);noseTip.scale.set(.82,.63,1);
       [-1,1].forEach(side=>{
-        const cheek=createMesh(ownGeometry(new THREE.SphereGeometry(.1,14,9)),blushMaterial,headPivot);
-        cheek.position.set(side*.34,.54,.575);cheek.scale.set(1.25,.52,.11);
+        addRibbon([
+          facePoint(side*.27,1.26,.028),
+          facePoint(side*.42,1.01,.034),
+          facePoint(side*.49,.58,.038)
+        ],.13,.032,.018,hairMaterial,headPivot,false);
       });
+
+      [-1,1].forEach(side=>{
+        const shadow=createMesh(detailSphereGeometry,eyeShadowMaterial,headPivot);
+        fineDetails.push(shadow);
+        shadow.position.set(side*.22,.815,faceSurfaceZ(side*.22,.815,.008));shadow.scale.set(.205,.088,.015);
+        const outer=facePoint(side*.35,.79,.018);
+        const middle=facePoint(side*.23,.744,.022);
+        const inner=facePoint(side*.09,.79,.018);
+        addCurve(new THREE.QuadraticBezierCurve3(outer,middle,inner),.0105,eyeMaterial,headPivot,20);
+        addCurve(new THREE.QuadraticBezierCurve3(
+          facePoint(side*.33,.858,.01),facePoint(side*.22,.885,.012),facePoint(side*.11,.858,.01)
+        ),.0048,eyeShadowMaterial,headPivot,14);
+        for(let lash=0;lash<3;lash++){
+          const rootX=side*(.33-lash*.037),rootY=.775-lash*.007;
+          const tipX=rootX+side*(.058-lash*.009),tipY=.704-lash*.009;
+          const midX=(rootX+tipX)*.5+side*.008,midY=(rootY+tipY)*.5-.006;
+          addTaperedLock([
+            facePoint(rootX,rootY,.024),facePoint(midX,midY,.027),facePoint(tipX,tipY,.025)
+          ],.0048,.0018,eyeMaterial,headPivot,false);
+        }
+        addTaperedLock([
+          facePoint(side*.1,.945,.02),facePoint(side*.22,.982,.022),facePoint(side*.35,.932,.018)
+        ],.011,.0045,browMaterial,headPivot,false);
+      });
+
+      const noseBridge=createMesh(detailSphereGeometry,skinMaterial,headPivot);
+      noseBridge.position.set(0,.65,faceSurfaceZ(0,.65,.033));noseBridge.scale.set(.033,.142,.027);
+      const noseTip=createMesh(detailSphereGeometry,skinMaterial,headPivot);
+      noseTip.position.set(0,.515,faceSurfaceZ(0,.515,.083));noseTip.scale.set(.068,.048,.067);
+      [-1,1].forEach(side=>{
+        const wing=createMesh(detailSphereGeometry,skinMaterial,headPivot);
+        wing.position.set(side*.041,.51,faceSurfaceZ(side*.041,.51,.059));wing.scale.set(.038,.023,.034);
+        const nostril=createMesh(detailSphereGeometry,nostrilMaterial,headPivot);
+        nostril.position.set(side*.029,.488,faceSurfaceZ(side*.029,.488,.057));nostril.scale.set(.012,.006,.004);
+      });
+      [-1,1].forEach(side=>{
+        const upperLip=createMesh(detailSphereGeometry,lipMaterial,headPivot);
+        upperLip.position.set(side*.048,.394,faceSurfaceZ(side*.048,.394,.061));
+        upperLip.scale.set(.071,.026,.021);upperLip.rotation.z=-side*.1;
+      });
+      const lowerLip=createMesh(detailSphereGeometry,lipMaterial,headPivot);
+      lowerLip.position.set(0,.36,faceSurfaceZ(0,.36,.064));lowerLip.scale.set(.108,.029,.027);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        facePoint(-.112,.384,.083),facePoint(0,.371,.091),facePoint(.112,.384,.083)
+      ),.0055,lipCreaseMaterial,headPivot,18);
+      [-1,1].forEach(side=>{
+        const cheek=createMesh(detailSphereGeometry,blushMaterial,headPivot);
+        cheek.position.set(side*.285,.57,faceSurfaceZ(side*.285,.57,.009));cheek.scale.set(.148,.061,.012);
+      });
+      const tearHighlight=createMesh(detailSphereGeometry,pearlMaterial,headPivot);
+      tearHighlight.position.set(.3,.66,faceSurfaceZ(.3,.66,.026));tearHighlight.scale.set(.008,.017,.005);
+
+      const chokerFlowerCenter=createMesh(detailSphereGeometry,pearlMaterial);
+      chokerFlowerCenter.position.set(0,3.4,.237);chokerFlowerCenter.scale.set(.045,.045,.026);
+      const chokerPetals=ownInstancedMesh(new THREE.InstancedMesh(detailSphereGeometry,laceMaterial,6));
+      for(let petal=0;petal<6;petal++){
+        const angle=petal*Math.PI/3;
+        const petalPosition=new THREE.Vector3(Math.cos(angle)*.07,3.4+Math.sin(angle)*.07,.23);
+        const petalQuaternion=new THREE.Quaternion().setFromAxisAngle(axisZ,angle-Math.PI/2);
+        instanceMatrix.compose(petalPosition,petalQuaternion,new THREE.Vector3(.038,.072,.018));
+        chokerPetals.setMatrixAt(petal,instanceMatrix);
+      }
+      chokerPetals.instanceMatrix.needsUpdate=true;chokerPetals.computeBoundingSphere();model.add(chokerPetals);
+      fineDetails.push(tearHighlight,chokerFlowerCenter,chokerPetals);
 
       const bowLobeShape=new THREE.Shape();
       bowLobeShape.moveTo(0,0);
-      bowLobeShape.bezierCurveTo(.12,.35,.36,.54,.56,.48);
-      bowLobeShape.bezierCurveTo(.67,.34,.63,.08,.5,.02);
-      bowLobeShape.bezierCurveTo(.34,-.06,.16,-.08,0,0);
+      bowLobeShape.bezierCurveTo(.15,.31,.42,.45,.62,.36);
+      bowLobeShape.bezierCurveTo(.74,.2,.67,-.11,.5,-.16);
+      bowLobeShape.bezierCurveTo(.3,-.2,.12,-.12,0,0);
       const bowLobeGeometry=ownGeometry(new THREE.ExtrudeGeometry(bowLobeShape,{
-        depth:.075,steps:1,curveSegments:8,bevelEnabled:true,bevelSegments:2,
-        bevelSize:.018,bevelThickness:.018
+        depth:.1,steps:1,curveSegments:12,bevelEnabled:true,bevelSegments:3,
+        bevelSize:.02,bevelThickness:.02
       }));
-      bowLobeGeometry.translate(0,0,-.0375);bowLobeGeometry.computeVertexNormals();
+      bowLobeGeometry.translate(0,0,-.05);bowLobeGeometry.computeVertexNormals();
+      const bowScallopGeometry=ownGeometry(new THREE.SphereGeometry(.024,8,6));
       [-1,1].forEach(side=>{
         const bow=new THREE.Group();
-        bow.position.set(side*.68,1.08,-.015);headPivot.add(bow);
+        bow.position.set(side*.65,1.07,.02);bow.rotation.set(-.07,side*.18,-side*.04);headPivot.add(bow);
         const outer=createMesh(bowLobeGeometry,laceMaterial,bow);
-        outer.scale.set(side*1.08,1.24,1);outer.rotation.z=side*.2;
+        outer.scale.set(side*1.16,1.12,1.18);outer.rotation.z=-side*.26;
+        outer.updateMatrix();
+        const scallops=ownInstancedMesh(new THREE.InstancedMesh(bowScallopGeometry,dressDetailMaterial,16));
+        const beadQuaternion=new THREE.Quaternion(),beadScale=new THREE.Vector3(1,1,.78);
+        for(let i=0;i<8;i++){
+          const u=(i+.35)/8;
+          const upperPoint=new THREE.Vector3(.06+u*.57,.035+Math.sin(u*Math.PI)*.4,.067).applyMatrix4(outer.matrix);
+          const lowerPoint=new THREE.Vector3(.06+u*.55,-.012-Math.sin(u*Math.PI)*.145,.065).applyMatrix4(outer.matrix);
+          instanceMatrix.compose(upperPoint,beadQuaternion,beadScale);scallops.setMatrixAt(i,instanceMatrix);
+          instanceMatrix.compose(lowerPoint,beadQuaternion,beadScale);scallops.setMatrixAt(i+8,instanceMatrix);
+        }
+        scallops.instanceMatrix.needsUpdate=true;scallops.computeBoundingSphere();bow.add(scallops);
+        const outerInset=createMesh(bowLobeGeometry,dressDetailMaterial,bow);
+        outerInset.position.z=.068;outerInset.scale.set(side*.9,.86,.62);outerInset.rotation.z=-side*.26;
         const inner=createMesh(bowLobeGeometry,laceMaterial,bow);
-        inner.scale.set(-side*.76,.94,.92);inner.rotation.z=-side*.34;
-        const knot=createMesh(ownGeometry(new THREE.SphereGeometry(.15,18,12)),laceMaterial,bow);
-        knot.scale.set(.9,1,.58);
+        inner.scale.set(-side*.48,.72,.95);inner.rotation.z=side*.2;
+        const innerInset=createMesh(bowLobeGeometry,dressDetailMaterial,bow);
+        innerInset.position.z=.064;innerInset.scale.set(-side*.32,.48,.52);innerInset.rotation.z=side*.2;
+        fineDetails.push(scallops,outerInset,innerInset);
+        const knot=createMesh(ownGeometry(new THREE.SphereGeometry(.15,20,14)),laceMaterial,bow);
+        knot.position.z=.32;knot.scale.set(.96,.88,.72);
         const tailA=addTaperedLock([
           new THREE.Vector3(side*.045,-.02,0),
           new THREE.Vector3(side*.09,-.35,.015),
           new THREE.Vector3(side*.035,-.72,.035),
-          new THREE.Vector3(side*.12,-1.02,.01)
-        ],.045,.017,laceMaterial,bow,true);
+          new THREE.Vector3(side*.12,-1.08,.01)
+        ],.052,.014,laceMaterial,bow,true);
         const tailB=addTaperedLock([
           new THREE.Vector3(-side*.035,-.015,-.015),
           new THREE.Vector3(-side*.08,-.32,-.025),
-          new THREE.Vector3(-side*.02,-.66,0),
-          new THREE.Vector3(-side*.09,-.9,-.015)
-        ],.038,.014,laceMaterial,bow,true);
+          new THREE.Vector3(-side*.02,-.7,0),
+          new THREE.Vector3(-side*.09,-.96,-.015)
+        ],.044,.012,laceMaterial,bow,true);
+        addTaperedLock([
+          new THREE.Vector3(side*.01,-.02,.04),new THREE.Vector3(side*.04,-.48,.055),new THREE.Vector3(side*.02,-1.17,.035)
+        ],.015,.004,dressDetailMaterial,bow,true);
         tailA.userData.bowSide=side;tailB.userData.bowSide=side;
       });
 
@@ -939,16 +1139,15 @@
         for(let i=0;i<count;i++){
           const zone=random();
           let x,y,z;
-          if(zone<.28){
-            const angle=random()*Math.PI*2,radius=.82+random()*.24;
-            y=3.45+random()*1.58;
-            x=Math.cos(angle)*.74*radius;
-            z=Math.sin(angle)*.66*radius-.03;
-          }else if(zone<.52){
-            const angle=random()*Math.PI*2,radius=.75+random()*.4;
-            y=3.27+random()*.72;
-            x=Math.cos(angle)*.42*radius;
-            z=.78+Math.sin(angle)*.34*radius;
+          if(zone<.22){
+            const angle=random()*Math.PI*2,radius=1.04+random()*.3;
+            y=3.38+random()*1.72;
+            x=Math.cos(angle)*.78*radius;
+            z=Math.sin(angle)*.7*radius-.1;
+          }else if(zone<.42){
+            x=(random()<.5?-1:1)*(.48+random()*.34);
+            y=3.18+random()*.94;
+            z=.52+random()*.46;
           }else{
             y=.04+random()*4.88;
             const angle=random()*Math.PI*2,radius=.88+random()*.3;
@@ -975,7 +1174,7 @@
           colors[i*3+2]=particleColor.b*brightness;
           sizes[i]=.65+Math.pow(random(),1.8)*1.55;
           seeds[i]=random();
-          alphas[i]=(zone<.52?.18:.26)+random()*(zone<.52?.28:.36);
+          alphas[i]=(zone<.42?.1:.24)+random()*(zone<.42?.2:.34);
         }
         const geometry=new THREE.BufferGeometry();
         geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
@@ -1004,6 +1203,7 @@
         const densityScale=mobile?.62:1;
         particles.geometry.setDrawRange(0,Math.max(1,Math.floor(config.particleDensity*densityScale)));
         particleUniforms.uPixelRatio.value=pixelRatio*(mobile?.9:1);
+        fineDetails.forEach(detail=>{detail.visible=!mobile});
       }
 
       function update(time,delta,_activeCamera,prefersReducedMotion){
@@ -1019,7 +1219,7 @@
         const contentScale=config.size*responsiveScale*(.975+.025*easedReveal);
         content.scale.setScalar(contentScale);
         torsoBreath.scale.set(1+breath*.3,1+breath*.18,1+breath);
-        prayerRig.position.y=breath*.36;
+        prayerRig.position.y=basePrayerY+breath*.36;
         headPivot.rotation.x=baseHeadPitch+Math.sin(time*.31+.6)*.008*motionScale;
         headPivot.rotation.y=baseHeadYaw+Math.sin(time*.19)*.004*motionScale;
         animatedLocks.forEach(({mesh,phase,amount})=>{
