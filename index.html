@@ -481,82 +481,20 @@
     }
 
     const DEFAULT_CHARACTER_SETTINGS=Object.freeze({
-      textureUrl:'./assets/meditating-character.png',
-      height:6.05,
+      size:1.22,
       x:0,
       y:.035,
-      z:.24,
-      opacity:.84,
+      z:.12,
       glowColor:0xb78cff,
-      glowStrength:.68,
-      particleDensity:620,
-      floatAmplitude:.085,
-      floatSpeed:.42,
-      breathStrength:.011,
-      swayStrength:.018,
-      mobileScale:1.13,
-      revealSpeed:.72
+      glowStrength:.62,
+      particleDensity:540,
+      floatAmplitude:.065,
+      floatSpeed:.34,
+      breathStrength:.008,
+      swayStrength:.014,
+      mobileScale:1.12,
+      revealSpeed:.82
     });
-
-    const characterVertexShader=`
-      precision highp float;
-      varying vec2 vUv;
-      uniform float uTime;
-      uniform float uMotionScale;
-
-      void main(){
-        vUv=uv;
-        vec3 p=position;
-        float outer=smoothstep(.2,.49,abs(uv.x-.5));
-        float hem=1.0-smoothstep(.14,.37,uv.y);
-        float centerGuard=1.0-smoothstep(.1,.3,abs(uv.x-.5));
-        float swayMask=outer*.76+hem*(1.0-centerGuard)*.24;
-        p.x+=sin(uTime*.45+uv.y*8.0)*uMotionScale*swayMask;
-        p.z+=sin(uTime*.31+uv.y*5.4)*uMotionScale*swayMask*.42;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
-      }
-    `;
-
-    const characterFragmentShader=`
-      precision highp float;
-      varying vec2 vUv;
-      uniform sampler2D uMap;
-      uniform vec3 uGlowColor;
-      uniform float uGlowStrength;
-      uniform float uOpacity;
-      uniform float uTime;
-      uniform float uReveal;
-
-      float subjectMask(vec3 color){
-        float maxRB=max(color.r,color.b);
-        float relativeGreen=(color.g-maxRB)/max(color.g,.001);
-        float absoluteGreen=color.g-maxRB;
-        float keyed=smoothstep(.18,.48,relativeGreen)
-          *smoothstep(.06,.24,absoluteGreen)
-          *smoothstep(.1,.3,color.g);
-        return 1.0-keyed;
-      }
-
-      void main(){
-        vec4 source=texture2D(uMap,vUv);
-        float alpha=subjectMask(source.rgb);
-        alpha*=mix(.2,1.0,smoothstep(0.0,.075,vUv.y));
-        float maxRB=max(source.r,source.b);
-        float spill=max(0.0,source.g-maxRB);
-        float edge=1.0-smoothstep(.55,.96,alpha);
-        vec3 color=source.rgb;
-        color.g-=spill*mix(.45,.88,edge);
-        color=max(color,vec3(0.0));
-        float luminance=dot(color,vec3(.2126,.7152,.0722));
-        color*=mix(.78,.48,smoothstep(.38,.9,luminance));
-        float rim=smoothstep(.04,.36,alpha)*(1.0-smoothstep(.48,.96,alpha));
-        float pulse=.82+.18*sin(uTime*.72);
-        color+=uGlowColor*rim*(.055+.065*pulse)*uGlowStrength;
-        float finalAlpha=alpha*uOpacity*uReveal;
-        if(finalAlpha<.008)discard;
-        gl_FragColor=vec4(color,finalAlpha);
-      }
-    `;
 
     const characterParticleVertexShader=`
       precision highp float;
@@ -601,101 +539,435 @@
 
     function createMeditatingCharacter(options={}){
       const config={...DEFAULT_CHARACTER_SETTINGS,...options};
-      const aspect=1023/1537;
-      const width=config.height*aspect;
       const root=new THREE.Group();
-      const facing=new THREE.Group();
       const motion=new THREE.Group();
+      const content=new THREE.Group();
+      const model=new THREE.Group();
       root.name='meditating-character';
       root.position.set(config.x,config.y,config.z);
-      root.add(facing);facing.add(motion);world.add(root);
+      root.add(motion);motion.add(content);content.add(model);world.add(root);
 
-      const ownedGeometries=new Set(),ownedMaterials=new Set(),ownedTextures=new Set();
+      const ownedGeometries=new Set(),ownedMaterials=new Set(),ownedTextures=new Set(),ownedInstancedMeshes=new Set();
+      const ownGeometry=geometry=>{ownedGeometries.add(geometry);return geometry};
+      const ownMaterial=material=>{ownedMaterials.add(material);return material};
+      const ownInstancedMesh=mesh=>{ownedInstancedMeshes.add(mesh);return mesh};
+      const createMesh=(geometry,material,parent=model)=>{
+        ownedGeometries.add(geometry);ownedMaterials.add(material);
+        const mesh=new THREE.Mesh(geometry,material);parent.add(mesh);return mesh;
+      };
+      const axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
+      const tempDirection=new THREE.Vector3(),tempMidpoint=new THREE.Vector3();
+      let randomState=0x5f3759df;
+      const random=()=>{randomState=(randomState*1664525+1013904223)>>>0;return randomState/4294967296};
+
+      const skinMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xffd0c4,roughness:.56,metalness:0,clearcoat:.12,clearcoatRoughness:.76,
+        sheen:.28,sheenColor:0xffb3a8,emissive:0xff776a,emissiveIntensity:.1
+      }));
+      const hairMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0x111522,roughness:.34,metalness:0,clearcoat:.28,clearcoatRoughness:.38,
+        sheen:1,sheenColor:0x59618c,sheenRoughness:.5,emissive:0x25164d,emissiveIntensity:.18
+      }));
+      const hairAccentMaterial=ownMaterial(hairMaterial.clone());
+      hairAccentMaterial.color.set(0x22283c);hairAccentMaterial.emissive.set(0x35236c);
+      const dressMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xf3dfbd,roughness:.66,metalness:0,clearcoat:.12,clearcoatRoughness:.78,
+        sheen:1,sheenColor:0xfff3df,sheenRoughness:.62,emissive:0xffbd78,emissiveIntensity:.11
+      }));
+      const laceMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xffefd5,roughness:.62,metalness:0,clearcoat:.14,clearcoatRoughness:.7,
+        sheen:1,sheenColor:0xffffff,sheenRoughness:.58,emissive:0xffd4a2,emissiveIntensity:.12,
+        side:THREE.DoubleSide
+      }));
+      const dressDetailMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xfff1da,roughness:.54,metalness:0,emissive:0xffcb91,emissiveIntensity:.1
+      }));
+      const eyeMaterial=ownMaterial(new THREE.MeshBasicMaterial({color:0x24111a}));
+      const lipMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xb84b60,roughness:.42,clearcoat:.28,clearcoatRoughness:.45,emissive:0x3b0916,emissiveIntensity:.12
+      }));
+      const pearlMaterial=ownMaterial(new THREE.MeshPhysicalMaterial({
+        color:0xfff5e3,roughness:.2,metalness:.04,clearcoat:1,clearcoatRoughness:.16,
+        emissive:0x4b3a57,emissiveIntensity:.1
+      }));
+      const blushMaterial=ownMaterial(new THREE.MeshBasicMaterial({
+        color:0xff7893,transparent:true,opacity:.18,depthWrite:false
+      }));
+
+      function createTaperedTubeGeometry(points,startRadius,endRadius,tubularSegments=18,radialSegments=6){
+        const curve=new THREE.CatmullRomCurve3(points,false,'centripetal');
+        const frames=curve.computeFrenetFrames(tubularSegments,false);
+        const positions=[],normals=[],uvs=[],indices=[];
+        const point=new THREE.Vector3(),normal=new THREE.Vector3();
+        for(let i=0;i<=tubularSegments;i++){
+          const u=i/tubularSegments;
+          curve.getPointAt(u,point);
+          const eased=u*u*(3-2*u);
+          const radius=THREE.MathUtils.lerp(startRadius,endRadius,eased);
+          for(let j=0;j<=radialSegments;j++){
+            const v=j/radialSegments*Math.PI*2;
+            normal.copy(frames.normals[i]).multiplyScalar(Math.cos(v));
+            normal.addScaledVector(frames.binormals[i],Math.sin(v)).normalize();
+            positions.push(point.x+normal.x*radius,point.y+normal.y*radius,point.z+normal.z*radius);
+            normals.push(normal.x,normal.y,normal.z);uvs.push(u,j/radialSegments);
+          }
+        }
+        for(let i=0;i<tubularSegments;i++){
+          for(let j=0;j<radialSegments;j++){
+            const a=i*(radialSegments+1)+j;
+            const b=(i+1)*(radialSegments+1)+j;
+            const c=(i+1)*(radialSegments+1)+j+1;
+            const d=i*(radialSegments+1)+j+1;
+            indices.push(a,b,d,b,c,d);
+          }
+        }
+        const geometry=new THREE.BufferGeometry();
+        geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+        geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+        geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+        geometry.setIndex(indices);geometry.computeBoundingSphere();return geometry;
+      }
+
+      const animatedLocks=[];
+      function addTaperedLock(points,startRadius,endRadius,material,parent=model,animated=true){
+        const origin=points[0].clone();
+        const localPoints=points.map(point=>point.clone().sub(origin));
+        const geometry=ownGeometry(createTaperedTubeGeometry(localPoints,startRadius,endRadius));
+        const mesh=new THREE.Mesh(geometry,material);
+        mesh.position.copy(origin);parent.add(mesh);
+        if(animated)animatedLocks.push({mesh,phase:random()*Math.PI*2,amount:.7+random()*.55});
+        return mesh;
+      }
+
+      function addCurve(curve,radius,material,parent,segments=12){
+        const geometry=ownGeometry(new THREE.TubeGeometry(curve,segments,radius,6,false));
+        const mesh=new THREE.Mesh(geometry,material);parent.add(mesh);return mesh;
+      }
+
+      function addCapsuleBetween(start,end,radius,material,parent=model,radialSegments=16){
+        tempDirection.copy(end).sub(start);
+        const length=tempDirection.length();
+        const geometry=ownGeometry(new THREE.CapsuleGeometry(radius,Math.max(.01,length-radius*2),6,radialSegments));
+        const mesh=new THREE.Mesh(geometry,material);
+        mesh.position.copy(start).add(end).multiplyScalar(.5);
+        mesh.quaternion.setFromUnitVectors(axisY,tempDirection.normalize());
+        parent.add(mesh);return mesh;
+      }
+
+      const skirtProfile=[
+        new THREE.Vector2(1.56,.04),new THREE.Vector2(1.52,.22),new THREE.Vector2(1.38,.5),
+        new THREE.Vector2(1.1,.82),new THREE.Vector2(.79,1.1),new THREE.Vector2(.58,1.36),
+        new THREE.Vector2(.54,1.52)
+      ];
+      const skirt=createMesh(ownGeometry(new THREE.LatheGeometry(skirtProfile,56)),dressMaterial);
+      skirt.name='full-3d-skirt';
+      const skirtBottom=createMesh(ownGeometry(new THREE.CircleGeometry(1.56,56)),dressMaterial);
+      skirtBottom.rotation.x=Math.PI/2;skirtBottom.position.y=.041;
+      [[1.39,.38,.065],[.98,.84,.046],[.73,1.13,.055]].forEach(([radius,y,tube])=>{
+        const ruffle=createMesh(ownGeometry(new THREE.TorusGeometry(radius,tube,7,56)),laceMaterial);
+        ruffle.rotation.x=Math.PI/2;ruffle.position.y=y;
+      });
+      const waistRuffle=createMesh(ownGeometry(new THREE.TorusGeometry(.57,.06,8,48)),laceMaterial);
+      waistRuffle.rotation.x=Math.PI/2;waistRuffle.position.y=1.49;
+
+      const pleatTop=new THREE.Vector3(.58,1.34,0),pleatBottom=new THREE.Vector3(1.29,.2,0);
+      const pleatLength=pleatTop.distanceTo(pleatBottom);
+      const pleatGeometry=ownGeometry(new THREE.CapsuleGeometry(.013,pleatLength-.026,4,6));
+      const pleats=ownInstancedMesh(new THREE.InstancedMesh(pleatGeometry,dressDetailMaterial,14));
+      const instanceMatrix=new THREE.Matrix4(),instanceQuaternion=new THREE.Quaternion(),instanceScale=new THREE.Vector3(1,1,1);
+      for(let i=0;i<14;i++){
+        const angle=i/14*Math.PI*2;
+        const top=new THREE.Vector3(Math.cos(angle)*.58,1.34,Math.sin(angle)*.58);
+        const bottom=new THREE.Vector3(Math.cos(angle)*1.29,.2,Math.sin(angle)*1.29);
+        tempDirection.copy(top).sub(bottom).normalize();
+        tempMidpoint.copy(top).add(bottom).multiplyScalar(.5);
+        instanceQuaternion.setFromUnitVectors(axisY,tempDirection);
+        instanceMatrix.compose(tempMidpoint,instanceQuaternion,instanceScale);
+        pleats.setMatrixAt(i,instanceMatrix);
+      }
+      pleats.instanceMatrix.needsUpdate=true;pleats.computeBoundingSphere();model.add(pleats);
+
+      const torsoBreath=new THREE.Group();model.add(torsoBreath);
+      const shoulderVolume=createMesh(ownGeometry(new THREE.SphereGeometry(1,28,18)),skinMaterial,torsoBreath);
+      shoulderVolume.position.set(0,3.03,0);shoulderVolume.scale.set(.94,.31,.42);
+      const bodice=createMesh(ownGeometry(new THREE.CapsuleGeometry(.5,.58,8,24)),dressMaterial,torsoBreath);
+      bodice.position.set(0,2.34,0);bodice.scale.set(1.05,1,.72);bodice.rotation.x=.025;
+      const neckline=createMesh(ownGeometry(new THREE.TorusGeometry(.55,.045,7,48)),laceMaterial,torsoBreath);
+      neckline.rotation.x=Math.PI/2;neckline.position.set(0,3.02,.015);neckline.scale.set(1,.67,1);
+      const neck=createMesh(ownGeometry(new THREE.CylinderGeometry(.18,.21,.34,20)),skinMaterial);
+      neck.position.set(0,3.34,.025);
+      const choker=createMesh(ownGeometry(new THREE.TorusGeometry(.205,.043,7,32)),laceMaterial);
+      choker.rotation.x=Math.PI/2;choker.position.set(0,3.39,.025);choker.scale.set(1,.92,1);
+
+      const buttonGeometry=ownGeometry(new THREE.SphereGeometry(.032,10,8));
+      const buttons=ownInstancedMesh(new THREE.InstancedMesh(buttonGeometry,pearlMaterial,7));
+      for(let i=0;i<7;i++){
+        instanceMatrix.compose(new THREE.Vector3(0,1.82+i*.17,.39),new THREE.Quaternion(),instanceScale);
+        buttons.setMatrixAt(i,instanceMatrix);
+      }
+      buttons.instanceMatrix.needsUpdate=true;buttons.computeBoundingSphere();model.add(buttons);
+
+      addCapsuleBetween(new THREE.Vector3(-.16,1.78,-.375),new THREE.Vector3(-.16,2.86,-.375),.012,dressDetailMaterial);
+      addCapsuleBetween(new THREE.Vector3(.16,1.78,-.375),new THREE.Vector3(.16,2.86,-.375),.012,dressDetailMaterial);
+      const backLoopGeometry=ownGeometry(new THREE.TorusGeometry(.052,.011,5,14));
+      const backLoops=ownInstancedMesh(new THREE.InstancedMesh(backLoopGeometry,dressDetailMaterial,6));
+      for(let i=0;i<6;i++){
+        instanceMatrix.compose(new THREE.Vector3(0,1.86+i*.18,-.38),new THREE.Quaternion(),instanceScale);
+        backLoops.setMatrixAt(i,instanceMatrix);
+      }
+      backLoops.instanceMatrix.needsUpdate=true;backLoops.computeBoundingSphere();model.add(backLoops);
+
+      const prayerRig=new THREE.Group();model.add(prayerRig);
+      const armCoordinates=[
+        {
+          side:-1,
+          shoulder:new THREE.Vector3(-.76,3.05,.03),
+          elbow:new THREE.Vector3(-1.03,2.18,.48),
+          wrist:new THREE.Vector3(-.25,3.36,.76)
+        },
+        {
+          side:1,
+          shoulder:new THREE.Vector3(.76,3.05,.03),
+          elbow:new THREE.Vector3(.98,2.08,.53),
+          wrist:new THREE.Vector3(.23,3.34,.82)
+        }
+      ];
+      armCoordinates.forEach(({side,shoulder,elbow,wrist})=>{
+        addCapsuleBetween(shoulder,elbow,.16,skinMaterial,prayerRig);
+        addCapsuleBetween(elbow,wrist,.138,skinMaterial,prayerRig);
+        const elbowJoint=createMesh(ownGeometry(new THREE.SphereGeometry(.155,16,12)),skinMaterial,prayerRig);
+        elbowJoint.position.copy(elbow);
+        const upperDirection=elbow.clone().sub(shoulder).normalize();
+        const puffCenter=shoulder.clone().lerp(elbow,.18);
+        const sleevePuff=createMesh(ownGeometry(new THREE.SphereGeometry(.245,18,12)),laceMaterial,prayerRig);
+        sleevePuff.position.copy(puffCenter);sleevePuff.scale.set(.96,1.18,.96);
+        sleevePuff.quaternion.setFromUnitVectors(axisY,upperDirection);
+        const sleeveRuffle=createMesh(ownGeometry(new THREE.TorusGeometry(.25,.05,6,28)),laceMaterial,prayerRig);
+        sleeveRuffle.position.copy(shoulder).lerp(elbow,.31);
+        sleeveRuffle.quaternion.setFromUnitVectors(axisZ,upperDirection);
+        sleeveRuffle.scale.set(1,1,.82);
+        const shoulderPearl=createMesh(ownGeometry(new THREE.SphereGeometry(.19,16,12)),skinMaterial,prayerRig);
+        shoulderPearl.position.copy(shoulder);
+        shoulderPearl.scale.set(1,.9,1);
+        shoulderPearl.userData.side=side;
+      });
+
+      const palmGeometry=ownGeometry(new THREE.CapsuleGeometry(.14,.21,7,18));
+      [-1,1].forEach(side=>{
+        const palm=createMesh(palmGeometry,skinMaterial,prayerRig);
+        palm.position.set(side*.085,3.57,side<0?.84:.88);
+        palm.rotation.set(.12,side*.035,side*.22);
+        palm.scale.set(.88,1,.58);
+      });
+
+      function setCapsuleInstance(instanced,index,center,direction,length,baseLength){
+        tempDirection.copy(direction).normalize();
+        instanceQuaternion.setFromUnitVectors(axisY,tempDirection);
+        instanceScale.set(1,length/baseLength,1);
+        instanceMatrix.compose(center,instanceQuaternion,instanceScale);
+        instanced.setMatrixAt(index,instanceMatrix);
+      }
+
+      const fingerBaseLength=.186;
+      const fingerGeometry=ownGeometry(new THREE.CapsuleGeometry(.037,fingerBaseLength-.074,5,10));
+      const fingers=ownInstancedMesh(new THREE.InstancedMesh(fingerGeometry,skinMaterial,8));
+      let fingerIndex=0;
+      [-1,1].forEach(side=>{
+        for(let i=0;i<4;i++){
+          const center=new THREE.Vector3(side*.018,3.69+i*.038,.972+(i%2)*.014+side*.004);
+          const direction=new THREE.Vector3(-side,.16+(i%2)*.08,side*.035);
+          setCapsuleInstance(fingers,fingerIndex++,center,direction,.184-i*.008,fingerBaseLength);
+        }
+      });
+      fingers.instanceMatrix.needsUpdate=true;fingers.computeBoundingSphere();prayerRig.add(fingers);
+
+      const thumbBaseLength=.27;
+      const thumbGeometry=ownGeometry(new THREE.CapsuleGeometry(.047,thumbBaseLength-.094,5,10));
+      const thumbs=ownInstancedMesh(new THREE.InstancedMesh(thumbGeometry,skinMaterial,2));
+      setCapsuleInstance(thumbs,0,new THREE.Vector3(-.035,3.61,1.0),new THREE.Vector3(.55,.76,.08),.27,thumbBaseLength);
+      setCapsuleInstance(thumbs,1,new THREE.Vector3(.035,3.615,1.015),new THREE.Vector3(-.55,.76,-.08),.27,thumbBaseLength);
+      thumbs.instanceMatrix.needsUpdate=true;thumbs.computeBoundingSphere();prayerRig.add(thumbs);
+
+      const hairBack=createMesh(ownGeometry(new THREE.CapsuleGeometry(.68,2.25,8,24)),hairMaterial);
+      hairBack.position.set(0,3.03,-.31);hairBack.scale.set(.9,1,.56);
+
+      for(let i=0;i<8;i++){
+        const x=(i-3.5)*.145;
+        addTaperedLock([
+          new THREE.Vector3(x*.72,4.66,-.24),
+          new THREE.Vector3(x,3.82,-.45-Math.cos(i)*.025),
+          new THREE.Vector3(x*1.12,2.55,-.42),
+          new THREE.Vector3(x*1.05,1.28+(i%3)*.08,-.24)
+        ],.105,.032,i%2?hairAccentMaterial:hairMaterial);
+      }
+      [-1,1].forEach(side=>{
+        addTaperedLock([
+          new THREE.Vector3(side*.43,4.66,.18),
+          new THREE.Vector3(side*.63,3.92,.42),
+          new THREE.Vector3(side*.72,2.7,.35),
+          new THREE.Vector3(side*.63,1.38,.08)
+        ],.115,.035,hairMaterial);
+        addTaperedLock([
+          new THREE.Vector3(side*.24,4.72,.25),
+          new THREE.Vector3(side*.4,3.9,.5),
+          new THREE.Vector3(side*.49,2.7,.39),
+          new THREE.Vector3(side*.4,1.62,.12)
+        ],.09,.028,hairAccentMaterial);
+      });
+
+      const headPivot=new THREE.Group();
+      headPivot.position.set(0,3.52,.035);
+      headPivot.rotation.set(.32,-.06,0);
+      model.add(headPivot);
+      const head=createMesh(ownGeometry(new THREE.SphereGeometry(1,36,28)),skinMaterial,headPivot);
+      head.position.set(0,.62,0);head.scale.set(.66,.82,.62);
+      const hairCap=createMesh(
+        ownGeometry(new THREE.SphereGeometry(1,36,20,0,Math.PI*2,0,Math.PI*.7)),
+        hairMaterial,headPivot
+      );
+      hairCap.position.set(0,.68,-.14);hairCap.scale.set(.74,.9,.58);
+      const crownKnot=createMesh(ownGeometry(new THREE.SphereGeometry(.3,24,16)),hairAccentMaterial,headPivot);
+      crownKnot.position.set(0,1.37,-.09);crownKnot.scale.set(1.18,.58,.82);
+
+      for(let i=-3;i<=3;i++){
+        const x=i*.092;
+        addTaperedLock([
+          new THREE.Vector3(x*.5,1.27,.2),
+          new THREE.Vector3(x*.86,1.05,.5),
+          new THREE.Vector3(x*1.18,.84+Math.abs(i)*.014,.628)
+        ],.07,.024,i%2?hairAccentMaterial:hairMaterial,headPivot,false);
+      }
+
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(-.35,.79,.57),new THREE.Vector3(-.22,.745,.615),new THREE.Vector3(-.09,.79,.585)
+      ),.014,eyeMaterial,headPivot);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(.09,.79,.585),new THREE.Vector3(.22,.745,.615),new THREE.Vector3(.35,.79,.57)
+      ),.014,eyeMaterial,headPivot);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(-.34,.94,.545),new THREE.Vector3(-.22,.98,.57),new THREE.Vector3(-.1,.945,.56)
+      ),.012,hairMaterial,headPivot);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(.1,.945,.56),new THREE.Vector3(.22,.98,.57),new THREE.Vector3(.34,.94,.545)
+      ),.012,hairMaterial,headPivot);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(-.15,.405,.61),new THREE.Vector3(0,.36,.65),new THREE.Vector3(.15,.405,.61)
+      ),.018,lipMaterial,headPivot);
+      addCurve(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(-.14,.38,.612),new THREE.Vector3(0,.335,.645),new THREE.Vector3(.14,.38,.612)
+      ),.013,lipMaterial,headPivot);
+      const noseBridge=createMesh(ownGeometry(new THREE.CapsuleGeometry(.035,.08,5,10)),skinMaterial,headPivot);
+      noseBridge.position.set(0,.6,.595);
+      const noseTip=createMesh(ownGeometry(new THREE.SphereGeometry(.066,14,10)),skinMaterial,headPivot);
+      noseTip.position.set(0,.535,.645);noseTip.scale.set(.82,.63,1);
+      [-1,1].forEach(side=>{
+        const cheek=createMesh(ownGeometry(new THREE.SphereGeometry(.1,14,9)),blushMaterial,headPivot);
+        cheek.position.set(side*.34,.54,.575);cheek.scale.set(1.25,.52,.11);
+      });
+
+      const bowLobeShape=new THREE.Shape();
+      bowLobeShape.moveTo(0,0);
+      bowLobeShape.bezierCurveTo(.12,.35,.36,.54,.56,.48);
+      bowLobeShape.bezierCurveTo(.67,.34,.63,.08,.5,.02);
+      bowLobeShape.bezierCurveTo(.34,-.06,.16,-.08,0,0);
+      const bowLobeGeometry=ownGeometry(new THREE.ExtrudeGeometry(bowLobeShape,{
+        depth:.075,steps:1,curveSegments:8,bevelEnabled:true,bevelSegments:2,
+        bevelSize:.018,bevelThickness:.018
+      }));
+      bowLobeGeometry.translate(0,0,-.0375);bowLobeGeometry.computeVertexNormals();
+      [-1,1].forEach(side=>{
+        const bow=new THREE.Group();
+        bow.position.set(side*.68,1.08,-.015);headPivot.add(bow);
+        const outer=createMesh(bowLobeGeometry,laceMaterial,bow);
+        outer.scale.set(side*1.08,1.24,1);outer.rotation.z=side*.2;
+        const inner=createMesh(bowLobeGeometry,laceMaterial,bow);
+        inner.scale.set(-side*.76,.94,.92);inner.rotation.z=-side*.34;
+        const knot=createMesh(ownGeometry(new THREE.SphereGeometry(.15,18,12)),laceMaterial,bow);
+        knot.scale.set(.9,1,.58);
+        const tailA=addTaperedLock([
+          new THREE.Vector3(side*.045,-.02,0),
+          new THREE.Vector3(side*.09,-.35,.015),
+          new THREE.Vector3(side*.035,-.72,.035),
+          new THREE.Vector3(side*.12,-1.02,.01)
+        ],.045,.017,laceMaterial,bow,true);
+        const tailB=addTaperedLock([
+          new THREE.Vector3(-side*.035,-.015,-.015),
+          new THREE.Vector3(-side*.08,-.32,-.025),
+          new THREE.Vector3(-side*.02,-.66,0),
+          new THREE.Vector3(-side*.09,-.9,-.015)
+        ],.038,.014,laceMaterial,bow,true);
+        tailA.userData.bowSide=side;tailB.userData.bowSide=side;
+      });
+
       const auraTexture=softTexture([
-        [0,'rgba(255,240,255,.82)'],
-        [.16,'rgba(202,137,255,.5)'],
-        [.46,'rgba(91,101,255,.2)'],
+        [0,'rgba(255,240,255,.66)'],
+        [.16,'rgba(202,137,255,.38)'],
+        [.46,'rgba(91,101,255,.15)'],
         [1,'rgba(29,16,94,0)']
       ]);
       ownedTextures.add(auraTexture);
-
-      const auraGeometry=new THREE.PlaneGeometry(width*1.55,config.height*1.13);
-      ownedGeometries.add(auraGeometry);
-      const auraMaterial=new THREE.MeshBasicMaterial({
+      const auraMaterial=ownMaterial(new THREE.SpriteMaterial({
         map:auraTexture,color:config.glowColor,transparent:true,opacity:0,
-        blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false,side:THREE.DoubleSide
-      });
-      ownedMaterials.add(auraMaterial);
-      const aura=new THREE.Mesh(auraGeometry,auraMaterial);
-      aura.position.set(0,config.height*.5,-.13);aura.renderOrder=8;motion.add(aura);
+        blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false
+      }));
+      const aura=new THREE.Sprite(auraMaterial);
+      aura.position.set(0,2.62,-.48);aura.scale.set(4.25,5.5,1);aura.renderOrder=5;content.add(aura);
 
-      const innerAuraGeometry=new THREE.PlaneGeometry(width*1.13,config.height*1.035);
-      ownedGeometries.add(innerAuraGeometry);
-      const innerAuraMaterial=auraMaterial.clone();
-      innerAuraMaterial.color.set(0x65bdff);innerAuraMaterial.opacity=0;
-      ownedMaterials.add(innerAuraMaterial);
-      const innerAura=new THREE.Mesh(innerAuraGeometry,innerAuraMaterial);
-      innerAura.position.set(0,config.height*.5,-.08);innerAura.renderOrder=9;motion.add(innerAura);
-
-      const baseGeometry=new THREE.CircleGeometry(1,72);
-      ownedGeometries.add(baseGeometry);
-      const baseMaterial=new THREE.MeshBasicMaterial({
+      const baseGeometry=ownGeometry(new THREE.CircleGeometry(1,72));
+      const baseMaterial=ownMaterial(new THREE.MeshBasicMaterial({
         map:auraTexture,color:0xc28cff,transparent:true,opacity:0,
         blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false,side:THREE.DoubleSide
-      });
-      ownedMaterials.add(baseMaterial);
+      }));
       const baseGlow=new THREE.Mesh(baseGeometry,baseMaterial);
-      baseGlow.rotation.x=-Math.PI/2;baseGlow.position.y=.025;baseGlow.renderOrder=8;facing.add(baseGlow);
-
-      const subjectGeometry=new THREE.PlaneGeometry(width,config.height,32,48);
-      subjectGeometry.translate(0,config.height*.5,0);ownedGeometries.add(subjectGeometry);
-      const subjectUniforms={
-        uMap:{value:null},
-        uGlowColor:{value:new THREE.Color(config.glowColor)},
-        uGlowStrength:{value:config.glowStrength},
-        uOpacity:{value:config.opacity},
-        uTime:{value:0},
-        uReveal:{value:0},
-        uMotionScale:{value:config.swayStrength}
-      };
-      const subjectMaterial=new THREE.ShaderMaterial({
-        uniforms:subjectUniforms,vertexShader:characterVertexShader,fragmentShader:characterFragmentShader,
-        transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.NormalBlending
+      baseGlow.rotation.x=-Math.PI/2;baseGlow.position.y=.025;baseGlow.renderOrder=5;content.add(baseGlow);
+      const ringMaterial=ownMaterial(new THREE.MeshBasicMaterial({
+        color:0xa982ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,
+        depthTest:true,depthWrite:false
+      }));
+      const energyRings=[
+        createMesh(ownGeometry(new THREE.TorusGeometry(1.05,.018,6,72)),ringMaterial,content),
+        createMesh(ownGeometry(new THREE.TorusGeometry(1.62,.014,6,88)),ringMaterial,content)
+      ];
+      energyRings.forEach((ring,index)=>{
+        ring.rotation.x=Math.PI/2;ring.position.y=.055+index*.018;ring.renderOrder=6;
       });
-      ownedMaterials.add(subjectMaterial);
-      const subject=new THREE.Mesh(subjectGeometry,subjectMaterial);
-      subject.visible=false;subject.renderOrder=10;motion.add(subject);
 
-      let randomState=0x5f3759df;
-      const random=()=>{randomState=(randomState*1664525+1013904223)>>>0;return randomState/4294967296};
       const particlePalette=[new THREE.Color(0xeac7ff),new THREE.Color(0x78cfff),new THREE.Color(0xffdff4),new THREE.Color(0x9b7dff)];
-
-      function createParticleGeometry(count,front){
+      function createParticleGeometry(count){
         const positions=new Float32Array(count*3),colors=new Float32Array(count*3);
         const sizes=new Float32Array(count),seeds=new Float32Array(count),alphas=new Float32Array(count);
         for(let i=0;i<count;i++){
           const zone=random();
-          let x,y;
+          let x,y,z;
           if(zone<.28){
-            y=config.height*(.57+random()*.36);
-            x=(random()+random()+random()-1.5)*width*.23;
+            const angle=random()*Math.PI*2,radius=.82+random()*.24;
+            y=3.45+random()*1.58;
+            x=Math.cos(angle)*.74*radius;
+            z=Math.sin(angle)*.66*radius-.03;
           }else if(zone<.52){
-            y=config.height*(.25+random()*.29);
-            x=(random()+random()-1)*width*.16;
+            const angle=random()*Math.PI*2,radius=.75+random()*.4;
+            y=3.27+random()*.72;
+            x=Math.cos(angle)*.42*radius;
+            z=.78+Math.sin(angle)*.34*radius;
           }else{
-            const u=.035+random()*.91;
-            y=config.height*u;
-            let halfWidth;
-            if(u<.24)halfWidth=width*(.43+u*.12);
-            else if(u<.54)halfWidth=width*(.49-(u-.24)*.25);
-            else if(u<.82)halfWidth=width*(.38-(u-.54)*.2);
-            else halfWidth=width*(.32+(u-.82)*.35);
-            if(random()<.7)x=(random()<.5?-1:1)*(halfWidth+(random()-.5)*width*.07);
-            else x=(random()-.5)*halfWidth*1.75;
+            y=.04+random()*4.88;
+            const angle=random()*Math.PI*2,radius=.88+random()*.3;
+            let radiusX,radiusZ;
+            if(y<1.52){
+              const t=y/1.52;
+              radiusX=THREE.MathUtils.lerp(1.56,.56,t);
+              radiusZ=radiusX*.67;
+            }else if(y<3.2){
+              radiusX=.68;radiusZ=.5;
+            }else{
+              radiusX=.76;radiusZ=.64;
+            }
+            x=Math.cos(angle)*radiusX*radius;
+            z=Math.sin(angle)*radiusZ*radius;
           }
           positions[i*3]=x;
           positions[i*3+1]=y;
-          positions[i*3+2]=front?.045+random()*.44:-.08-random()*.5;
+          positions[i*3+2]=z;
           const particleColor=particlePalette[Math.floor(random()*particlePalette.length)];
           const brightness=.72+random()*.48;
           colors[i*3]=particleColor.r*brightness;
@@ -711,87 +983,72 @@
         geometry.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
         geometry.setAttribute('aSeed',new THREE.BufferAttribute(seeds,1));
         geometry.setAttribute('aAlpha',new THREE.BufferAttribute(alphas,1));
-        geometry.computeBoundingSphere();ownedGeometries.add(geometry);return geometry;
+        geometry.computeBoundingSphere();return ownGeometry(geometry);
       }
 
-      const rearCount=Math.floor(config.particleDensity*.42);
-      const frontCount=config.particleDensity-rearCount;
       const particleUniforms={
         uTime:{value:0},uPixelRatio:{value:1},uMotionScale:{value:1},uReveal:{value:0}
       };
-      const particleMaterial=new THREE.ShaderMaterial({
+      const particleMaterial=ownMaterial(new THREE.ShaderMaterial({
         uniforms:particleUniforms,vertexShader:characterParticleVertexShader,fragmentShader:characterParticleFragmentShader,
         transparent:true,vertexColors:true,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false
-      });
-      ownedMaterials.add(particleMaterial);
-      const rearParticles=new THREE.Points(createParticleGeometry(rearCount,false),particleMaterial);
-      const frontParticles=new THREE.Points(createParticleGeometry(frontCount,true),particleMaterial);
-      rearParticles.renderOrder=7;frontParticles.renderOrder=11;
-      motion.add(rearParticles,frontParticles);
+      }));
+      const particles=new THREE.Points(createParticleGeometry(config.particleDensity),particleMaterial);
+      particles.renderOrder=11;particles.frustumCulled=false;content.add(particles);
 
-      let disposed=false,ready=false,reveal=0,responsiveScale=1;
-      const anchorWorldPosition=new THREE.Vector3();
-      const textureLoader=new THREE.TextureLoader();
-      textureLoader.load(config.textureUrl,texture=>{
-        if(disposed){texture.dispose();return}
-        texture.colorSpace=THREE.SRGBColorSpace;
-        texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;
-        texture.minFilter=THREE.LinearMipmapLinearFilter;
-        texture.magFilter=THREE.LinearFilter;
-        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-        subjectUniforms.uMap.value=texture;ownedTextures.add(texture);
-        subject.visible=true;ready=true;
-      },undefined,error=>{
-        console.error('Could not load the meditating character texture.',error);
-      });
+      let disposed=false,reveal=0,responsiveScale=1;
+      const baseHeadPitch=headPivot.rotation.x,baseHeadYaw=headPivot.rotation.y;
 
       function setResponsive(mobile,pixelRatio){
         responsiveScale=mobile?config.mobileScale:1;
         const densityScale=mobile?.62:1;
-        rearParticles.geometry.setDrawRange(0,Math.max(1,Math.floor(rearCount*densityScale)));
-        frontParticles.geometry.setDrawRange(0,Math.max(1,Math.floor(frontCount*densityScale)));
+        particles.geometry.setDrawRange(0,Math.max(1,Math.floor(config.particleDensity*densityScale)));
         particleUniforms.uPixelRatio.value=pixelRatio*(mobile?.9:1);
       }
 
-      function update(time,delta,activeCamera,prefersReducedMotion){
+      function update(time,delta,_activeCamera,prefersReducedMotion){
         if(disposed)return;
         const motionScale=prefersReducedMotion?.15:1;
-        if(ready)reveal=Math.min(1,reveal+delta*config.revealSpeed);
+        reveal=Math.min(1,reveal+delta*config.revealSpeed);
         const easedReveal=reveal*reveal*(3-2*reveal);
-        root.getWorldPosition(anchorWorldPosition);
-        facing.rotation.y=Math.atan2(activeCamera.position.x-anchorWorldPosition.x,activeCamera.position.z-anchorWorldPosition.z);
         const hover=Math.sin(time*config.floatSpeed)*config.floatAmplitude*motionScale;
-        const breath=Math.sin(time*.72)*config.breathStrength*motionScale;
+        const breathWave=Math.sin(time*.72);
+        const breath=breathWave*config.breathStrength*motionScale;
         motion.position.y=hover;
-        motion.rotation.z=Math.sin(time*.27)*.0045*motionScale;
-        motion.scale.set(
-          responsiveScale*(1+breath*.28),
-          responsiveScale*(1+breath),
-          responsiveScale
-        );
-        subjectUniforms.uTime.value=time;
-        subjectUniforms.uReveal.value=easedReveal;
-        subjectUniforms.uMotionScale.value=config.swayStrength*motionScale;
+        motion.rotation.z=Math.sin(time*.27)*.0035*motionScale;
+        const contentScale=config.size*responsiveScale*(.975+.025*easedReveal);
+        content.scale.setScalar(contentScale);
+        torsoBreath.scale.set(1+breath*.3,1+breath*.18,1+breath);
+        prayerRig.position.y=breath*.36;
+        headPivot.rotation.x=baseHeadPitch+Math.sin(time*.31+.6)*.008*motionScale;
+        headPivot.rotation.y=baseHeadYaw+Math.sin(time*.19)*.004*motionScale;
+        animatedLocks.forEach(({mesh,phase,amount})=>{
+          mesh.rotation.x=Math.sin(time*.27+phase)*config.swayStrength*.55*amount*motionScale;
+          mesh.rotation.z=Math.sin(time*.22+phase*.83)*config.swayStrength*amount*motionScale;
+        });
         particleUniforms.uTime.value=time;
         particleUniforms.uMotionScale.value=motionScale;
         particleUniforms.uReveal.value=easedReveal;
         const energyPulse=.9+.1*Math.sin(time*.63)*motionScale;
-        auraMaterial.opacity=.075*config.glowStrength*energyPulse*easedReveal;
-        innerAuraMaterial.opacity=.045*config.glowStrength*(1.9-energyPulse)*easedReveal;
-        baseMaterial.opacity=.12*config.glowStrength*energyPulse*easedReveal;
-        aura.scale.setScalar(1+(energyPulse-.9)*.12*motionScale);
-        innerAura.scale.setScalar(1-(energyPulse-.9)*.07*motionScale);
+        auraMaterial.opacity=.06*config.glowStrength*energyPulse*easedReveal;
+        baseMaterial.opacity=.105*config.glowStrength*energyPulse*easedReveal;
+        ringMaterial.opacity=.19*config.glowStrength*energyPulse*easedReveal;
+        const auraScale=1+(energyPulse-.9)*.16*motionScale;
+        aura.scale.set(4.25*auraScale,5.5*auraScale,1);
         const baseScale=1+(energyPulse-.9)*.35*motionScale;
         baseGlow.scale.set(2.25*baseScale,1.1*baseScale,1);
+        energyRings[0].scale.setScalar(1+(energyPulse-.9)*.8);
+        energyRings[1].scale.setScalar(1-(energyPulse-.9)*.45);
       }
 
       function dispose(){
         if(disposed)return;
         disposed=true;root.removeFromParent();
+        ownedInstancedMeshes.forEach(mesh=>mesh.dispose());
         ownedGeometries.forEach(geometry=>geometry.dispose());
         ownedMaterials.forEach(material=>material.dispose());
         ownedTextures.forEach(texture=>texture.dispose());
-        ownedGeometries.clear();ownedMaterials.clear();ownedTextures.clear();
+        ownedInstancedMeshes.clear();ownedGeometries.clear();ownedMaterials.clear();ownedTextures.clear();
       }
 
       return {root,config,update,setResponsive,dispose};
