@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02030b">
-  <meta name="description" content="Một nhân vật thiền định giữa tinh hà huyền ảo cùng hai chú cá voi 3D.">
+  <meta name="description" content="Chuỗi chân dung huyền ảo giữa tinh hà cùng hai chú cá voi 3D.">
   <title>Whales Beyond the Stars</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500&display=swap');
@@ -146,7 +146,7 @@
       <p class="lock-message" id="lockMessage" role="status">Mật mã chưa đúng. Hãy thử lại.</p>
     </div>
   </section>
-  <canvas id="scene" aria-label="Nhân vật thiền định giữa tinh hà cùng hai chú cá voi 3D"></canvas>
+  <canvas id="scene" aria-label="Chuỗi chân dung huyền ảo giữa tinh hà cùng hai chú cá voi 3D"></canvas>
   <div class="scene-loader" id="sceneLoader">Đang kiến tạo vũ trụ 3D</div>
   <div class="webgl-error" id="webglError">Thiết bị của bạn chưa hỗ trợ WebGL 2.<br>Hãy thử mở trang bằng trình duyệt mới hơn.</div>
   <div class="camera-hint">Kéo để xoay · Chạm để đổi góc nhìn</div>
@@ -513,21 +513,35 @@
     }
 
     const DEFAULT_CHARACTER_SETTINGS=Object.freeze({
-      textureUrl:'./assets/meditating-character.png',
+      portraitUrls:Object.freeze([
+        './assets/portraits/portrait-01.jpg',
+        './assets/portraits/portrait-02.jpg',
+        './assets/portraits/portrait-03.jpg',
+        './assets/portraits/portrait-04.jpg',
+        './assets/portraits/portrait-05.jpg',
+        './assets/portraits/portrait-06.jpg',
+        './assets/portraits/portrait-07.jpg',
+        './assets/portraits/portrait-08.jpg',
+        './assets/portraits/portrait-09.jpg',
+        './assets/portraits/portrait-10.jpg'
+      ]),
       height:6.05,
+      frameAspect:.82,
       x:0,
       y:.035,
       z:.24,
-      opacity:.84,
+      opacity:.88,
       glowColor:0xb78cff,
-      glowStrength:.68,
+      glowStrength:.54,
       particleDensity:620,
       floatAmplitude:.085,
       floatSpeed:.42,
       breathStrength:.011,
       swayStrength:.018,
       mobileScale:1.13,
-      revealSpeed:.72
+      revealSpeed:.72,
+      slideDuration:15,
+      transitionDuration:2.35
     });
 
     const characterVertexShader=`
@@ -558,33 +572,55 @@
       uniform float uOpacity;
       uniform float uTime;
       uniform float uReveal;
+      uniform float uVisibility;
+      uniform float uTextureAspect;
+      uniform float uFrameAspect;
+      uniform float uEffectsScale;
+      uniform float uDissolveDirection;
 
-      float subjectMask(vec3 color){
-        float maxRB=max(color.r,color.b);
-        float relativeGreen=(color.g-maxRB)/max(color.g,.001);
-        float absoluteGreen=color.g-maxRB;
-        float keyed=smoothstep(.18,.48,relativeGreen)
-          *smoothstep(.06,.24,absoluteGreen)
-          *smoothstep(.1,.3,color.g);
-        return 1.0-keyed;
+      float hash21(vec2 p){
+        p=fract(p*vec2(123.34,456.21));
+        p+=dot(p,p+45.32);
+        return fract(p.x*p.y);
       }
 
       void main(){
-        vec4 source=texture2D(uMap,vUv);
-        float alpha=subjectMask(source.rgb);
-        alpha*=mix(.2,1.0,smoothstep(0.0,.075,vUv.y));
-        float maxRB=max(source.r,source.b);
-        float spill=max(0.0,source.g-maxRB);
-        float edge=1.0-smoothstep(.55,.96,alpha);
+        float portraitWidth=clamp(uTextureAspect/uFrameAspect,.01,1.0);
+        float portraitLeft=.5-portraitWidth*.5;
+        vec2 portraitUv=vec2((vUv.x-portraitLeft)/portraitWidth,vUv.y);
+        if(portraitUv.x<0.0||portraitUv.x>1.0)discard;
+
+        vec4 source=texture2D(uMap,portraitUv);
+        vec2 centered=(portraitUv-.5)*2.0;
+        float superEllipse=pow(abs(centered.x),4.0)+pow(abs(centered.y),4.0);
+        float portraitMask=1.0-smoothstep(.22,1.0,superEllipse);
+        portraitMask*=smoothstep(0.0,.15,portraitUv.y);
+
+        vec2 noiseCell=floor(portraitUv*vec2(103.0,151.0));
+        float grain=hash21(noiseCell);
+        float wave=.045*sin(portraitUv.y*10.5+portraitUv.x*4.2+uTime*.46*uEffectsScale);
+        float rawDissolveField=clamp(portraitUv.y*.77+portraitUv.x*.05+grain*.13+wave,.0,1.0);
+        float dissolveField=mix(rawDissolveField,1.0-rawDissolveField,uDissolveDirection);
+        float visibility=clamp(uVisibility,0.0,1.0);
+        float dissolve=smoothstep(dissolveField-.105,dissolveField+.105,visibility);
+        dissolve*=smoothstep(0.0,.035,visibility);
+        dissolve=mix(dissolve,1.0,smoothstep(.93,1.0,visibility));
+        float transitionEnergy=4.0*visibility*(1.0-visibility);
+        float frontier=exp(-pow((dissolveField-visibility)*15.0,2.0))*transitionEnergy;
+        float sparkle=step(.982,hash21(noiseCell+19.7))*frontier;
+
         vec3 color=source.rgb;
-        color.g-=spill*mix(.45,.88,edge);
-        color=max(color,vec3(0.0));
         float luminance=dot(color,vec3(.2126,.7152,.0722));
-        color*=mix(.78,.48,smoothstep(.38,.9,luminance));
-        float rim=smoothstep(.04,.36,alpha)*(1.0-smoothstep(.48,.96,alpha));
-        float pulse=.82+.18*sin(uTime*.72);
-        color+=uGlowColor*rim*(.055+.065*pulse)*uGlowStrength;
-        float finalAlpha=alpha*uOpacity*uReveal;
+        float aurora=.5+.5*sin(uTime*.34+portraitUv.y*7.5+portraitUv.x*4.7);
+        vec3 cosmic=mix(vec3(.10,.58,1.0),vec3(.48,.25,1.0),aurora);
+        float softEdge=1.0-smoothstep(.18,.78,portraitMask);
+        vec3 celestialEdge=vec3(luminance)*vec3(.34,.54,.88)+cosmic*.065;
+        color=mix(color,celestialEdge,softEdge*.62*uEffectsScale);
+        color*=mix(.31,.265,smoothstep(.42,.94,luminance));
+        float rim=smoothstep(.02,.22,portraitMask)*(1.0-smoothstep(.3,.76,portraitMask));
+        color+=uGlowColor*rim*(.035+.025*sin(uTime*.72))*uGlowStrength;
+        color+=cosmic*(frontier*.19+sparkle*.6)*uEffectsScale;
+        float finalAlpha=portraitMask*uOpacity*uReveal*(dissolve+frontier*.075);
         if(finalAlpha<.008)discard;
         gl_FragColor=vec4(color,finalAlpha);
       }
@@ -633,8 +669,8 @@
 
     function createMeditatingCharacter(options={}){
       const config={...DEFAULT_CHARACTER_SETTINGS,...options};
-      const aspect=1023/1537;
-      const width=config.height*aspect;
+      const frameWidth=config.height*config.frameAspect;
+      const auraWidth=config.height*.73;
       const root=new THREE.Group();
       const facing=new THREE.Group();
       const motion=new THREE.Group();
@@ -651,7 +687,7 @@
       ]);
       ownedTextures.add(auraTexture);
 
-      const auraGeometry=new THREE.PlaneGeometry(width*1.55,config.height*1.13);
+      const auraGeometry=new THREE.PlaneGeometry(auraWidth*1.55,config.height*1.13);
       ownedGeometries.add(auraGeometry);
       const auraMaterial=new THREE.MeshBasicMaterial({
         map:auraTexture,color:config.glowColor,transparent:true,opacity:0,
@@ -661,7 +697,7 @@
       const aura=new THREE.Mesh(auraGeometry,auraMaterial);
       aura.position.set(0,config.height*.5,-.13);aura.renderOrder=8;motion.add(aura);
 
-      const innerAuraGeometry=new THREE.PlaneGeometry(width*1.13,config.height*1.035);
+      const innerAuraGeometry=new THREE.PlaneGeometry(auraWidth*1.13,config.height*1.035);
       ownedGeometries.add(innerAuraGeometry);
       const innerAuraMaterial=auraMaterial.clone();
       innerAuraMaterial.color.set(0x65bdff);innerAuraMaterial.opacity=0;
@@ -679,24 +715,33 @@
       const baseGlow=new THREE.Mesh(baseGeometry,baseMaterial);
       baseGlow.rotation.x=-Math.PI/2;baseGlow.position.y=.025;baseGlow.renderOrder=8;facing.add(baseGlow);
 
-      const subjectGeometry=new THREE.PlaneGeometry(width,config.height,32,48);
+      const subjectGeometry=new THREE.PlaneGeometry(frameWidth,config.height,32,48);
       subjectGeometry.translate(0,config.height*.5,0);ownedGeometries.add(subjectGeometry);
-      const subjectUniforms={
-        uMap:{value:null},
-        uGlowColor:{value:new THREE.Color(config.glowColor)},
-        uGlowStrength:{value:config.glowStrength},
-        uOpacity:{value:config.opacity},
-        uTime:{value:0},
-        uReveal:{value:0},
-        uMotionScale:{value:config.swayStrength}
-      };
-      const subjectMaterial=new THREE.ShaderMaterial({
-        uniforms:subjectUniforms,vertexShader:characterVertexShader,fragmentShader:characterFragmentShader,
-        transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.NormalBlending
-      });
-      ownedMaterials.add(subjectMaterial);
-      const subject=new THREE.Mesh(subjectGeometry,subjectMaterial);
-      subject.visible=false;subject.renderOrder=10;motion.add(subject);
+      function createSubjectSlot(renderOrder,z,dissolveDirection){
+        const uniforms={
+          uMap:{value:null},
+          uGlowColor:{value:new THREE.Color(config.glowColor)},
+          uGlowStrength:{value:config.glowStrength},
+          uOpacity:{value:config.opacity},
+          uTime:{value:0},
+          uReveal:{value:0},
+          uVisibility:{value:0},
+          uTextureAspect:{value:.73},
+          uFrameAspect:{value:config.frameAspect},
+          uEffectsScale:{value:1},
+          uDissolveDirection:{value:dissolveDirection},
+          uMotionScale:{value:config.swayStrength}
+        };
+        const material=new THREE.ShaderMaterial({
+          uniforms,vertexShader:characterVertexShader,fragmentShader:characterFragmentShader,
+          transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.NormalBlending
+        });
+        ownedMaterials.add(material);
+        const mesh=new THREE.Mesh(subjectGeometry,material);
+        mesh.visible=false;mesh.position.z=z;mesh.renderOrder=renderOrder;motion.add(mesh);
+        return {mesh,uniforms,portraitIndex:-1};
+      }
+      const subjectSlots=[createSubjectSlot(10,.002,0),createSubjectSlot(11,.012,1)];
 
       let randomState=0x5f3759df;
       const random=()=>{randomState=(randomState*1664525+1013904223)>>>0;return randomState/4294967296};
@@ -710,19 +755,19 @@
           let x,y;
           if(zone<.28){
             y=config.height*(.57+random()*.36);
-            x=(random()+random()+random()-1.5)*width*.23;
+            x=(random()+random()+random()-1.5)*auraWidth*.23;
           }else if(zone<.52){
             y=config.height*(.25+random()*.29);
-            x=(random()+random()-1)*width*.16;
+            x=(random()+random()-1)*auraWidth*.16;
           }else{
             const u=.035+random()*.91;
             y=config.height*u;
             let halfWidth;
-            if(u<.24)halfWidth=width*(.43+u*.12);
-            else if(u<.54)halfWidth=width*(.49-(u-.24)*.25);
-            else if(u<.82)halfWidth=width*(.38-(u-.54)*.2);
-            else halfWidth=width*(.32+(u-.82)*.35);
-            if(random()<.7)x=(random()<.5?-1:1)*(halfWidth+(random()-.5)*width*.07);
+            if(u<.24)halfWidth=auraWidth*(.43+u*.12);
+            else if(u<.54)halfWidth=auraWidth*(.49-(u-.24)*.25);
+            else if(u<.82)halfWidth=auraWidth*(.38-(u-.54)*.2);
+            else halfWidth=auraWidth*(.32+(u-.82)*.35);
+            if(random()<.7)x=(random()<.5?-1:1)*(halfWidth+(random()-.5)*auraWidth*.07);
             else x=(random()-.5)*halfWidth*1.75;
           }
           positions[i*3]=x;
@@ -761,21 +806,52 @@
       rearParticles.renderOrder=7;frontParticles.renderOrder=11;
       motion.add(rearParticles,frontParticles);
 
-      let disposed=false,ready=false,reveal=0,responsiveScale=1;
+      let disposed=false,ready=false,reveal=0,responsiveScale=1,carouselStartedAt=null;
+      let portraits=[];
       const anchorWorldPosition=new THREE.Vector3();
       const textureLoader=new THREE.TextureLoader();
-      textureLoader.load(config.textureUrl,texture=>{
-        if(disposed){texture.dispose();return}
-        texture.colorSpace=THREE.SRGBColorSpace;
-        texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;
-        texture.minFilter=THREE.LinearMipmapLinearFilter;
-        texture.magFilter=THREE.LinearFilter;
-        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-        subjectUniforms.uMap.value=texture;ownedTextures.add(texture);
-        subject.visible=true;ready=true;
-      },undefined,error=>{
-        console.error('Could not load the meditating character texture.',error);
+
+      function loadPortrait(url){
+        return new Promise(resolve=>{
+          textureLoader.load(url,texture=>{
+            if(disposed){texture.dispose();resolve(null);return}
+            texture.colorSpace=THREE.SRGBColorSpace;
+            texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;
+            texture.generateMipmaps=false;
+            texture.minFilter=THREE.LinearFilter;
+            texture.magFilter=THREE.LinearFilter;
+            texture.anisotropy=1;
+            ownedTextures.add(texture);
+            const image=texture.image;
+            const imageWidth=image.naturalWidth||image.width||1;
+            const imageHeight=image.naturalHeight||image.height||1;
+            resolve({texture,aspect:imageWidth/imageHeight,url});
+          },undefined,error=>{
+            console.warn(`Could not load portrait texture: ${url}`,error);
+            resolve(null);
+          });
+        });
+      }
+
+      Promise.all(config.portraitUrls.map(loadPortrait)).then(loadedPortraits=>{
+        if(disposed)return;
+        portraits=loadedPortraits.filter(Boolean);
+        root.userData.portraitCount=portraits.length;
+        if(!portraits.length){
+          console.error('Could not load any portrait textures.');
+          return;
+        }
+        ready=true;
       });
+
+      function bindSubjectSlot(slot,portraitIndex){
+        if(slot.portraitIndex===portraitIndex)return;
+        const portrait=portraits[portraitIndex];
+        slot.uniforms.uMap.value=portrait.texture;
+        slot.uniforms.uTextureAspect.value=portrait.aspect;
+        slot.portraitIndex=portraitIndex;
+        slot.mesh.visible=true;
+      }
 
       function setResponsive(mobile,pixelRatio){
         responsiveScale=mobile?config.mobileScale:1;
@@ -785,11 +861,45 @@
         particleUniforms.uPixelRatio.value=pixelRatio*(mobile?.9:1);
       }
 
-      function update(time,delta,activeCamera,prefersReducedMotion){
+      function update(time,realTime,delta,activeCamera,prefersReducedMotion){
         if(disposed)return;
         const motionScale=prefersReducedMotion?.15:1;
-        if(ready)reveal=Math.min(1,reveal+delta*config.revealSpeed);
+        const lockScreen=document.querySelector('#lockScreen');
+        if(ready&&carouselStartedAt===null&&(!lockScreen||lockScreen.classList.contains('unlocked')))carouselStartedAt=realTime;
+        if(carouselStartedAt!==null)reveal=Math.min(1,reveal+delta*config.revealSpeed);
         const easedReveal=reveal*reveal*(3-2*reveal);
+        let transitionEnergy=0;
+        if(ready&&carouselStartedAt!==null){
+          const slideDuration=Math.max(.5,config.slideDuration);
+          const transitionDuration=Math.min(
+            slideDuration*.45,
+            prefersReducedMotion?Math.min(.75,config.transitionDuration):config.transitionDuration
+          );
+          const carouselTime=Math.max(0,realTime-carouselStartedAt);
+          const currentIndex=Math.floor(carouselTime/slideDuration)%portraits.length;
+          const nextIndex=(currentIndex+1)%portraits.length;
+          const withinSlide=carouselTime%slideDuration;
+          const transitionStart=slideDuration-transitionDuration;
+          const linearBlend=portraits.length>1
+            ?THREE.MathUtils.clamp((withinSlide-transitionStart)/transitionDuration,0,1)
+            :0;
+          const blend=linearBlend*linearBlend*(3-2*linearBlend);
+          bindSubjectSlot(subjectSlots[0],currentIndex);
+          const currentVisibility=1-blend;
+          subjectSlots[0].uniforms.uVisibility.value=currentVisibility;
+          subjectSlots[0].mesh.scale.setScalar(.985+.015*currentVisibility);
+          subjectSlots[0].mesh.position.y=(1-currentVisibility)*.025*motionScale;
+          if(portraits.length>1){
+            bindSubjectSlot(subjectSlots[1],nextIndex);
+            subjectSlots[1].uniforms.uVisibility.value=blend;
+            subjectSlots[1].mesh.scale.setScalar(.985+.015*blend);
+            subjectSlots[1].mesh.position.y=(1-blend)*.025*motionScale;
+          }else subjectSlots[1].mesh.visible=false;
+          transitionEnergy=Math.sin(Math.PI*linearBlend);
+          root.userData.currentPortraitIndex=currentIndex;
+          root.userData.nextPortraitIndex=nextIndex;
+          root.userData.transitionProgress=blend;
+        }
         root.getWorldPosition(anchorWorldPosition);
         facing.rotation.y=Math.atan2(activeCamera.position.x-anchorWorldPosition.x,activeCamera.position.z-anchorWorldPosition.z);
         const hover=Math.sin(time*config.floatSpeed)*config.floatAmplitude*motionScale;
@@ -801,18 +911,22 @@
           responsiveScale*(1+breath),
           responsiveScale
         );
-        subjectUniforms.uTime.value=time;
-        subjectUniforms.uReveal.value=easedReveal;
-        subjectUniforms.uMotionScale.value=config.swayStrength*motionScale;
+        subjectSlots.forEach(slot=>{
+          slot.uniforms.uTime.value=time;
+          slot.uniforms.uReveal.value=easedReveal;
+          slot.uniforms.uEffectsScale.value=motionScale;
+          slot.uniforms.uMotionScale.value=config.swayStrength*motionScale;
+        });
         particleUniforms.uTime.value=time;
         particleUniforms.uMotionScale.value=motionScale;
-        particleUniforms.uReveal.value=easedReveal;
+        particleUniforms.uReveal.value=easedReveal*(1+transitionEnergy*.38*motionScale);
         const energyPulse=.9+.1*Math.sin(time*.63)*motionScale;
-        auraMaterial.opacity=.075*config.glowStrength*energyPulse*easedReveal;
-        innerAuraMaterial.opacity=.045*config.glowStrength*(1.9-energyPulse)*easedReveal;
-        baseMaterial.opacity=.12*config.glowStrength*energyPulse*easedReveal;
-        aura.scale.setScalar(1+(energyPulse-.9)*.12*motionScale);
-        innerAura.scale.setScalar(1-(energyPulse-.9)*.07*motionScale);
+        const transitionPulse=1+transitionEnergy*.72*motionScale;
+        auraMaterial.opacity=.075*config.glowStrength*energyPulse*transitionPulse*easedReveal;
+        innerAuraMaterial.opacity=.045*config.glowStrength*(1.9-energyPulse)*transitionPulse*easedReveal;
+        baseMaterial.opacity=.12*config.glowStrength*energyPulse*(1+transitionEnergy*.38*motionScale)*easedReveal;
+        aura.scale.setScalar((1+(energyPulse-.9)*.12*motionScale)*(1+transitionEnergy*.035*motionScale));
+        innerAura.scale.setScalar((1-(energyPulse-.9)*.07*motionScale)*(1-transitionEnergy*.025*motionScale));
         const baseScale=1+(energyPulse-.9)*.35*motionScale;
         baseGlow.scale.set(2.25*baseScale,1.1*baseScale,1);
       }
@@ -1274,7 +1388,8 @@
     function render(timestamp){
       timer.update(timestamp);
       const delta=Math.min(timer.getDelta(),.05);
-      const time=timer.getElapsed()*(reducedMotion?.16:1);
+      const realTime=timer.getElapsed();
+      const time=realTime*(reducedMotion?.16:1);
       galaxy.rotation.y=time*.028;galaxy.rotation.x=Math.sin(time*.045)*.025;
       galaxy.userData.uniforms.uTime.value=time;whales.forEach(whale=>animateWhale(whale,time,delta));
       if(cameraTransition){
@@ -1283,7 +1398,7 @@
         if(camera.position.distanceTo(cameraTransition.position)<.035)cameraTransition=null;
       }
       controls.update();
-      meditatingCharacter.update(time,delta,camera,reducedMotion);
+      meditatingCharacter.update(time,realTime,delta,camera,reducedMotion);
       composer.render();requestAnimationFrame(render);
     }
     let gestureStart=null;
