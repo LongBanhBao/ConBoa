@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02030b">
   <meta name="description" content="Chuỗi chân dung huyền ảo giữa tinh hà cùng hai chú cá voi 3D.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%238edcff' d='M32 3l5.6 20.4L58 29l-20.4 5.6L32 55l-5.6-20.4L6 29l20.4-5.6z'/%3E%3C/svg%3E">
   <title>Whales Beyond the Stars</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500&display=swap');
@@ -24,6 +25,38 @@
       position:fixed; inset:-40%; z-index:3; pointer-events:none; opacity:.025;
       background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.75'/%3E%3C/svg%3E");
       animation:grain .35s steps(2) infinite;
+    }
+    .local-portrait-carousel {
+      --aura-opacity:.52; --aura-scale:1; --spark-opacity:.2;
+      position:fixed; left:50%; top:51%; z-index:1; width:min(36vw,390px); height:min(57vh,500px);
+      transform:translate(-50%,-50%) scale(.975); opacity:0; visibility:hidden; pointer-events:none;
+      isolation:isolate; transition:opacity 1s ease,visibility 1s ease,transform 1.35s cubic-bezier(.2,.75,.2,1);
+    }
+    .local-portrait-carousel.active { opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1); }
+    .local-portrait-carousel::before,
+    .local-portrait-carousel::after {
+      content:""; position:absolute; inset:-13%; z-index:-1; border-radius:50%; pointer-events:none;
+    }
+    .local-portrait-carousel::before {
+      background:radial-gradient(ellipse,rgba(110,202,255,.22),rgba(129,83,255,.1) 42%,transparent 72%);
+      filter:blur(14px); opacity:var(--aura-opacity); transform:scale(var(--aura-scale));
+    }
+    .local-portrait-carousel::after {
+      inset:-5%;
+      background:
+        radial-gradient(circle at 18% 27%,rgba(155,225,255,.75) 0 1px,transparent 2px),
+        radial-gradient(circle at 79% 34%,rgba(192,166,255,.8) 0 1px,transparent 2px),
+        radial-gradient(circle at 67% 76%,rgba(112,206,255,.68) 0 1px,transparent 2px),
+        radial-gradient(circle at 28% 68%,rgba(218,203,255,.7) 0 1px,transparent 2px);
+      background-size:71px 83px,89px 67px,77px 91px,97px 79px;
+      filter:drop-shadow(0 0 5px #7dcfff); opacity:var(--spark-opacity);
+    }
+    .local-portrait {
+      position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center;
+      opacity:0; transform:translateY(8px) scale(.985); will-change:opacity,transform,filter;
+      -webkit-mask-image:radial-gradient(ellipse 66% 60% at 50% 49%,#000 43%,rgba(0,0,0,.88) 67%,transparent 100%);
+      mask-image:radial-gradient(ellipse 66% 60% at 50% 49%,#000 43%,rgba(0,0,0,.88) 67%,transparent 100%);
+      filter:brightness(.72) saturate(.92) contrast(1.04) drop-shadow(0 0 12px rgba(117,193,255,.36));
     }
     .scene-loader {
       position:fixed; inset:0; z-index:5; display:grid; place-items:center; pointer-events:none;
@@ -98,6 +131,7 @@
     @media (max-width:620px) {
       .lock-panel{padding:18px 25px 22px}.lock-date{margin-bottom:28px}
       .keypad{grid-template-columns:repeat(3,64px);gap:10px 20px}.key{width:64px;height:64px}
+      .local-portrait-carousel{top:50%;width:min(72vw,310px);height:min(47vh,400px)}
     }
     @media (max-height:620px) {
       .lock-screen{place-items:start center;overflow-y:auto;scrollbar-width:none}
@@ -106,8 +140,12 @@
       .lock-date{margin:4px 0 10px;font-size:11px}.lock-title{margin-bottom:8px}
       .pass-dots{margin-bottom:10px}.keypad{grid-template-columns:repeat(3,48px);gap:5px 18px}
       .key{width:48px;height:48px;font-size:20px}.lock-message{margin-top:7px}
+      .local-portrait-carousel{width:min(45vw,300px);height:min(70vh,360px)}
     }
-    @media (prefers-reduced-motion:reduce) { .grain,.lock-screen::before,.scene-loader::after{animation:none} }
+    @media (prefers-reduced-motion:reduce) {
+      .grain,.lock-screen::before,.scene-loader::after{animation:none}
+      .local-portrait-carousel{transition:opacity .25s ease,visibility .25s ease}
+    }
   </style>
   <script type="importmap">
     {
@@ -147,6 +185,10 @@
     </div>
   </section>
   <canvas id="scene" aria-label="Chuỗi chân dung huyền ảo giữa tinh hà cùng hai chú cá voi 3D"></canvas>
+  <div class="local-portrait-carousel" id="localPortraitCarousel" aria-hidden="true">
+    <img class="local-portrait" alt="">
+    <img class="local-portrait" alt="">
+  </div>
   <div class="scene-loader" id="sceneLoader">Đang kiến tạo vũ trụ 3D</div>
   <div class="webgl-error" id="webglError">Thiết bị của bạn chưa hỗ trợ WebGL 2.<br>Hãy thử mở trang bằng trình duyệt mới hơn.</div>
   <div class="camera-hint">Kéo để xoay · Chạm để đổi góc nhìn</div>
@@ -211,6 +253,7 @@
     const canvas=document.querySelector('#scene');
     const loader=document.querySelector('#sceneLoader');
     const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const localFileMode=location.protocol==='file:';
     if(!document.createElement('canvas').getContext('webgl2')){
       document.querySelector('#webglError').style.display='grid';
       loader.classList.add('hidden');
@@ -544,6 +587,115 @@
       transitionDuration:2.35
     });
 
+    function createLocalPortraitCarousel(urls){
+      const container=document.querySelector('#localPortraitCarousel');
+      if(!localFileMode||!container)return {update(){},dispose(){}};
+      const slots=[...container.querySelectorAll('.local-portrait')];
+      const requestedSources=urls.map(url=>new URL(url,document.baseURI).href);
+      let sources=[],startedAt=null,disposed=false,ready=false,lastIndex=-1,lastBlend=-1;
+      const slotIndexes=[-1,-1];
+      const localImages=[];
+      const frameCenter=new THREE.Vector3(),frameTop=new THREE.Vector3(),frameBottom=new THREE.Vector3();
+      function loadLocalSource(source){
+        return new Promise(resolve=>{
+          const image=new Image();localImages.push(image);image.decoding='async';
+          let settled=false;
+          const finish=value=>{
+            if(settled)return;settled=true;clearTimeout(timeoutId);
+            image.onload=null;image.onerror=null;resolve(value);
+          };
+          const timeoutId=setTimeout(()=>finish(null),7000);
+          image.onload=()=>finish(source);image.onerror=()=>finish(null);image.src=source;
+        });
+      }
+      const sourceTasks=requestedSources.map(loadLocalSource);
+      sourceTasks[0]?.then(firstSource=>{
+        if(disposed||!firstSource||ready)return;
+        sources=[firstSource];ready=true;
+      });
+      Promise.all(sourceTasks).then(loadedSources=>{
+        if(disposed)return;
+        const availableSources=loadedSources.filter(Boolean);
+        if(!availableSources.length){
+          console.error('Could not load any local portrait images.');
+          return;
+        }
+        const hadStarted=startedAt!==null;
+        sources=availableSources;ready=true;slotIndexes.fill(-1);lastIndex=-1;lastBlend=-1;
+        if(hadStarted)startedAt=null;
+      });
+      function bind(slotIndex,portraitIndex){
+        if(slotIndexes[slotIndex]===portraitIndex)return;
+        slots[slotIndex].src=sources[portraitIndex];
+        slotIndexes[slotIndex]=portraitIndex;
+      }
+      function styleSlot(slot,visibility,incoming,minimalMotion){
+        const eased=THREE.MathUtils.clamp(visibility,0,1);
+        slot.style.opacity=eased.toFixed(4);
+        const offset=minimalMotion?0:(1-eased)*(incoming?10:-7);
+        const scale=minimalMotion?1:.982+eased*.018;
+        const blur=minimalMotion?0:(1-eased)*2.4;
+        slot.style.transform=`translateY(${offset.toFixed(2)}px) scale(${scale.toFixed(4)})`;
+        slot.style.filter=`brightness(.72) saturate(.92) contrast(1.04) blur(${blur.toFixed(2)}px) drop-shadow(0 0 12px rgba(117,193,255,.36))`;
+      }
+      function syncFrame(activeCamera){
+        const responsiveScale=innerWidth<620?DEFAULT_CHARACTER_SETTINGS.mobileScale:1;
+        const centerY=DEFAULT_CHARACTER_SETTINGS.y+DEFAULT_CHARACTER_SETTINGS.height*.5*responsiveScale;
+        const topY=DEFAULT_CHARACTER_SETTINGS.y+DEFAULT_CHARACTER_SETTINGS.height*responsiveScale;
+        frameCenter.set(DEFAULT_CHARACTER_SETTINGS.x,centerY,DEFAULT_CHARACTER_SETTINGS.z);
+        frameTop.set(DEFAULT_CHARACTER_SETTINGS.x,topY,DEFAULT_CHARACTER_SETTINGS.z);
+        frameBottom.set(DEFAULT_CHARACTER_SETTINGS.x,DEFAULT_CHARACTER_SETTINGS.y,DEFAULT_CHARACTER_SETTINGS.z);
+        world.localToWorld(frameCenter);world.localToWorld(frameTop);world.localToWorld(frameBottom);
+        frameCenter.project(activeCamera);frameTop.project(activeCamera);frameBottom.project(activeCamera);
+        const projectedHeight=Math.abs(frameTop.y-frameBottom.y)*innerHeight*.5;
+        if(!Number.isFinite(projectedHeight)||projectedHeight<24)return;
+        const height=THREE.MathUtils.clamp(projectedHeight,105,innerHeight*.82);
+        container.style.left=`${((frameCenter.x*.5+.5)*innerWidth).toFixed(2)}px`;
+        container.style.top=`${((-frameCenter.y*.5+.5)*innerHeight).toFixed(2)}px`;
+        container.style.width=`${(height*DEFAULT_CHARACTER_SETTINGS.frameAspect).toFixed(2)}px`;
+        container.style.height=`${height.toFixed(2)}px`;
+      }
+      function update(realTime,prefersReducedMotion,activeCamera){
+        if(disposed)return;
+        syncFrame(activeCamera);
+        if(!ready||!sources.length)return;
+        const lockScreen=document.querySelector('#lockScreen');
+        if(startedAt===null&&(!lockScreen||lockScreen.classList.contains('unlocked'))){
+          startedAt=realTime;container.classList.add('active');
+        }
+        if(startedAt===null)return;
+        const slideDuration=Math.max(.5,DEFAULT_CHARACTER_SETTINGS.slideDuration);
+        const transitionDuration=Math.min(
+          slideDuration*.45,
+          prefersReducedMotion?Math.min(.75,DEFAULT_CHARACTER_SETTINGS.transitionDuration):DEFAULT_CHARACTER_SETTINGS.transitionDuration
+        );
+        const carouselTime=Math.max(0,realTime-startedAt);
+        const currentIndex=Math.floor(carouselTime/slideDuration)%sources.length;
+        const nextIndex=(currentIndex+1)%sources.length;
+        const withinSlide=carouselTime%slideDuration;
+        const transitionStart=slideDuration-transitionDuration;
+        const linearBlend=sources.length>1
+          ?THREE.MathUtils.clamp((withinSlide-transitionStart)/transitionDuration,0,1)
+          :0;
+        const blend=linearBlend*linearBlend*(3-2*linearBlend);
+        if(currentIndex!==lastIndex||Math.abs(blend-lastBlend)>.0005){
+          bind(0,currentIndex);bind(1,nextIndex);
+          styleSlot(slots[0],1-blend,false,prefersReducedMotion);
+          styleSlot(slots[1],blend,true,prefersReducedMotion);
+          const transitionEnergy=Math.sin(Math.PI*linearBlend);
+          container.style.setProperty('--aura-opacity',(.52+transitionEnergy*.28).toFixed(4));
+          container.style.setProperty('--aura-scale',(1+transitionEnergy*(prefersReducedMotion?0:.05)).toFixed(4));
+          container.style.setProperty('--spark-opacity',(.2+transitionEnergy*.58).toFixed(4));
+          lastIndex=currentIndex;lastBlend=blend;
+        }
+      }
+      function dispose(){
+        if(disposed)return;disposed=true;container.remove();
+        localImages.forEach(image=>{image.onload=null;image.onerror=null});
+      }
+      return {update,dispose};
+    }
+
     const characterVertexShader=`
       precision highp float;
       varying vec2 vUv;
@@ -806,15 +958,30 @@
       rearParticles.renderOrder=7;frontParticles.renderOrder=11;
       motion.add(rearParticles,frontParticles);
 
-      let disposed=false,ready=false,reveal=0,responsiveScale=1,carouselStartedAt=null;
+      let disposed=false,ready=localFileMode,reveal=0,responsiveScale=1,carouselStartedAt=null;
       let portraits=[];
       const anchorWorldPosition=new THREE.Vector3();
       const textureLoader=new THREE.TextureLoader();
+      const portraitCacheVersion='20260823-2';
+      root.userData.portraitCount=localFileMode?config.portraitUrls.length:0;
 
-      function loadPortrait(url){
+      function portraitRequestUrl(url,attempt){
+        const requestUrl=new URL(url,document.baseURI);
+        requestUrl.searchParams.set('portrait',portraitCacheVersion);
+        if(attempt)requestUrl.searchParams.set('retry',`${attempt}-${Date.now()}`);
+        return requestUrl.href;
+      }
+
+      function loadPortraitAttempt(url,attempt){
         return new Promise(resolve=>{
-          textureLoader.load(url,texture=>{
-            if(disposed){texture.dispose();resolve(null);return}
+          let settled=false;
+          const finishEmpty=()=>{
+            if(settled)return;settled=true;clearTimeout(timeoutId);resolve(null);
+          };
+          const timeoutId=setTimeout(finishEmpty,7000);
+          textureLoader.load(portraitRequestUrl(url,attempt),texture=>{
+            if(settled||disposed){texture.dispose();finishEmpty();return}
+            settled=true;clearTimeout(timeoutId);
             texture.colorSpace=THREE.SRGBColorSpace;
             texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;
             texture.generateMipmaps=false;
@@ -826,23 +993,47 @@
             const imageWidth=image.naturalWidth||image.width||1;
             const imageHeight=image.naturalHeight||image.height||1;
             resolve({texture,aspect:imageWidth/imageHeight,url});
-          },undefined,error=>{
-            console.warn(`Could not load portrait texture: ${url}`,error);
-            resolve(null);
-          });
+          },undefined,finishEmpty);
         });
       }
 
-      Promise.all(config.portraitUrls.map(loadPortrait)).then(loadedPortraits=>{
-        if(disposed)return;
-        portraits=loadedPortraits.filter(Boolean);
-        root.userData.portraitCount=portraits.length;
-        if(!portraits.length){
-          console.error('Could not load any portrait textures.');
-          return;
+      async function loadPortrait(url){
+        for(let attempt=0;attempt<2;attempt++){
+          if(disposed)return null;
+          const portrait=await loadPortraitAttempt(url,attempt);
+          if(portrait)return portrait;
         }
-        ready=true;
-      });
+        if(!disposed)console.warn(`Could not load portrait texture after retry: ${url}`);
+        return null;
+      }
+
+      if(!localFileMode){
+        const portraitRecords=new Array(config.portraitUrls.length).fill(null);
+        const loadTasks=config.portraitUrls.map((url,index)=>loadPortrait(url).then(portrait=>{
+          portraitRecords[index]=portrait;
+          return portrait;
+        }));
+        loadTasks[0]?.then(firstPortrait=>{
+          if(disposed||!firstPortrait||ready)return;
+          portraits=[firstPortrait];
+          root.userData.portraitCount=1;
+          ready=true;
+        });
+        Promise.all(loadTasks).then(()=>{
+          if(disposed)return;
+          const loadedPortraits=portraitRecords.filter(Boolean);
+          if(!loadedPortraits.length){
+            console.error('Could not load any portrait textures.');
+            return;
+          }
+          const restartCarousel=carouselStartedAt!==null&&portraits.length===1&&loadedPortraits.length>1;
+          portraits=loadedPortraits;
+          subjectSlots.forEach(slot=>{slot.portraitIndex=-1});
+          root.userData.portraitCount=portraits.length;
+          ready=true;
+          if(restartCarousel)carouselStartedAt=null;
+        });
+      }
 
       function bindSubjectSlot(slot,portraitIndex){
         if(slot.portraitIndex===portraitIndex)return;
@@ -869,7 +1060,7 @@
         if(carouselStartedAt!==null)reveal=Math.min(1,reveal+delta*config.revealSpeed);
         const easedReveal=reveal*reveal*(3-2*reveal);
         let transitionEnergy=0;
-        if(ready&&carouselStartedAt!==null){
+        if(ready&&carouselStartedAt!==null&&portraits.length){
           const slideDuration=Math.max(.5,config.slideDuration);
           const transitionDuration=Math.min(
             slideDuration*.45,
@@ -1340,6 +1531,7 @@
     createStarfield();
     const galaxy=createGalaxy();
     const meditatingCharacter=createMeditatingCharacter();
+    const localPortraitCarousel=createLocalPortraitCarousel(DEFAULT_CHARACTER_SETTINGS.portraitUrls);
     const dustTexture=softTexture([[0,'rgba(148,106,255,.32)'],[.35,'rgba(68,73,220,.12)'],[1,'rgba(20,16,80,0)']]);
     for(let i=0;i<13;i++){
       const cloud=new THREE.Sprite(new THREE.SpriteMaterial({map:dustTexture,color:i%2?0x875dff:0x387fcf,transparent:true,opacity:THREE.MathUtils.randFloat(.045,.105),blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1399,6 +1591,7 @@
       }
       controls.update();
       meditatingCharacter.update(time,realTime,delta,camera,reducedMotion);
+      localPortraitCarousel.update(realTime,reducedMotion,camera);
       composer.render();requestAnimationFrame(render);
     }
     let gestureStart=null;
@@ -1419,7 +1612,9 @@
     canvas.addEventListener('pointercancel',()=>{gestureStart=null},{passive:true});
     controls.addEventListener('start',()=>{cameraTransition=null});
     addEventListener('resize',resize,{passive:true});
-    addEventListener('beforeunload',()=>meditatingCharacter.dispose(),{once:true});
+    addEventListener('beforeunload',()=>{
+      meditatingCharacter.dispose();localPortraitCarousel.dispose();
+    },{once:true});
     resize();canvas.classList.add('ready');loader.classList.add('hidden');requestAnimationFrame(render);
   </script>
 </body>
